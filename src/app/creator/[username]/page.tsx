@@ -24,8 +24,8 @@ const creatorData: Record<string, CreatorData> = {
   "maxmuscles": {
     name: "Max Muscles",
     username: "@maxmuscles",
-    avatar: "/ChatGPT_Image_Apr_25,_2025,_09_33_26_PM.png",
-    coverImage: "/ChatGPT_Image_Apr_25,_2025,_09_33_26_PM.png",
+    avatar: "/MaxMuscles.jpg",
+    coverImage: "/MaxMuscles.jpg",
     price: "$24.99/month",
     subscribers: "4.2k",
     bio: "German Shepherd with a body that would make Zeus jealous 💪 I spend my days pumping iron and my nights making your wildest fantasies come true. These muscles aren't just for show - I know exactly how to use them to make you beg for more. I'm looking for someone who appreciates a real alpha male who can go all night long. My stamina is legendary, and my technique is... let's just say I've never had any complaints 😈",
@@ -37,9 +37,9 @@ const creatorData: Record<string, CreatorData> = {
     },
     specialties: ["Muscle Worship", "Alpha Roleplay", "Workout Sessions", "Domination"],
     gallery: [
-      "/ChatGPT_Image_Apr_25,_2025,_09_33_26_PM.png",
-      "/ChatGPT_Image_Apr_25,_2025,_09_33_26_PM.png",
-      "/ChatGPT_Image_Apr_25,_2025,_09_33_26_PM.png"
+      "/MaxMuscles.jpg",
+      "/MaxMuscles.jpg",
+      "/MaxMuscles.jpg"
     ]
   },
   "chloeswims": {
@@ -150,8 +150,8 @@ const creatorData: Record<string, CreatorData> = {
   "lunaluxe": {
     name: "Luna Luxe",
     username: "@lunaluxe",
-    avatar: "/68b0317b-a179-4d0d-be79-5acd1397c2c8.jpeg",
-    coverImage: "/68b0317b-a179-4d0d-be79-5acd1397c2c8.jpeg",
+    avatar: "/LunaLuxe.jpg",
+    coverImage: "/LunaLuxe.jpg",
     price: "$18.99/month",
     subscribers: "2.1k",
     bio: "Elegant dog with sophistication and passion 💫 When elegance meets naughty... you know it's going to be special. My premium content is designed for discerning tastes only. Class and seduction in perfect harmony 💎",
@@ -163,16 +163,16 @@ const creatorData: Record<string, CreatorData> = {
     },
     specialties: ["Elegant Content", "Sophisticated Play", "Premium Experience", "Class & Seduction"],
     gallery: [
-      "/68b0317b-a179-4d0d-be79-5acd1397c2c8.jpeg",
-      "/68b0317b-a179-4d0d-be79-5acd1397c2c8.jpeg",
-      "/68b0317b-a179-4d0d-be79-5acd1397c2c8.jpeg"
+      "/LunaLuxe.jpg",
+      "/LunaLuxe.jpg",
+      "/LunaLuxe.jpg"
     ]
   },
   "zarawild": {
     name: "Zara Wild",
     username: "@zarawild",
-    avatar: "/7f940b83-ea3f-46da-8761-d26dbc5d778c.jpeg",
-    coverImage: "/7f940b83-ea3f-46da-8761-d26dbc5d778c.jpeg",
+    avatar: "/ZaraWild.jpg",
+    coverImage: "/ZaraWild.jpg",
     price: "$11.99/month",
     subscribers: "892",
     bio: "New girl alert! 🚨 I may be fresh to the scene but I'm ready to show you wild things you've never seen before. Who wants to break me in? I'm eager to learn and even more eager to please 😈",
@@ -184,9 +184,9 @@ const creatorData: Record<string, CreatorData> = {
     },
     specialties: ["New Girl Experience", "Wild Sessions", "Learning & Growing", "Fresh Content"],
     gallery: [
-      "/7f940b83-ea3f-46da-8761-d26dbc5d778c.jpeg",
-      "/7f940b83-ea3f-46da-8761-d26dbc5d778c.jpeg",
-      "/7f940b83-ea3f-46da-8761-d26dbc5d778c.jpeg"
+      "/ZaraWild.jpg",
+      "/ZaraWild.jpg",
+      "/ZaraWild.jpg"
     ]
   },
   "dieseldaddy": {

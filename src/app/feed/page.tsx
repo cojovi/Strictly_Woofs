@@ -113,9 +113,9 @@ export default function FeedPage() {
       id: 1,
       creator: "Max Muscles",
       username: "@maxmuscles",
-      avatar: "/ChatGPT_Image_Apr_25,_2025,_09_33_26_PM.png",
+      avatar: "/MaxMuscles.jpg",
       content: "Just finished my workout 💪 These muscles don't build themselves... Want to feel how hard I've been working? My personal training sessions are always... intense 😈",
-      image: "/ChatGPT_Image_Apr_25,_2025,_09_33_26_PM.png",
+      image: "/MaxMuscles.jpg",
       likes: 1234,
       comments: 289,
       isVerified: true,
@@ -185,9 +185,9 @@ export default function FeedPage() {
       id: 7,
       creator: "Luna Luxe",
       username: "@lunaluxe",
-      avatar: "/68b0317b-a179-4d0d-be79-5acd1397c2c8.jpeg",
+      avatar: "/LunaLuxe.jpg",
       content: "Elegance meets passion tonight 💫 When sophistication gets naughty... You know it's going to be special. My premium content is ready for discerning tastes only 💎",
-      image: "/68b0317b-a179-4d0d-be79-5acd1397c2c8.jpeg",
+      image: "/LunaLuxe.jpg",
       likes: 892,
       comments: 167,
       isVerified: true,
@@ -197,9 +197,9 @@ export default function FeedPage() {
       id: 8,
       creator: "Zara Wild",
       username: "@zarawild",
-      avatar: "/7f940b83-ea3f-46da-8761-d26dbc5d778c.jpeg",
+      avatar: "/ZaraWild.jpg",
       content: "New girl alert! 🚨 I may be fresh to the scene but I'm ready to show you wild things you've never seen before. Who wants to break me in? 😈",
-      image: "/7f940b83-ea3f-46da-8761-d26dbc5d778c.jpeg",
+      image: "/ZaraWild.jpg",
       likes: 654,
       comments: 198,
       isVerified: true,
@@ -353,7 +353,7 @@ export default function FeedPage() {
           <div className="flex flex-col items-center space-y-2 min-w-[80px]">
             <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 p-0.5">
               <img
-                src="/ChatGPT_Image_Apr_25,_2025,_09_33_26_PM.png"
+                src="/MaxMuscles.jpg"
                 className="w-full h-full rounded-full object-cover"
                 alt="Max's story"
               />
@@ -386,7 +386,7 @@ export default function FeedPage() {
           <div className="flex flex-col items-center space-y-2 min-w-[80px]">
             <div className="w-16 h-16 rounded-full bg-gradient-to-r from-red-500 to-orange-500 p-0.5">
               <img
-                src="/68b0317b-a179-4d0d-be79-5acd1397c2c8.jpeg"
+                src="/LunaLuxe.jpg"
                 className="w-full h-full rounded-full object-cover"
                 alt="Luna's story"
               />
