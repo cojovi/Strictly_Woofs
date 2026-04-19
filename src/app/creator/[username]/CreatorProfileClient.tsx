@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo"
 
 interface CreatorData {
   name: string
@@ -41,25 +42,7 @@ export default function CreatorProfileClient({ creator, username }: CreatorProfi
       <header className="sticky top-0 bg-black/95 backdrop-blur border-b border-gray-800 p-4 z-50">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/feed" className="flex items-center space-x-2">
-            <svg
-              className="h-10"
-              viewBox="0 0 300 80"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle cx="40" cy="40" r="25" fill="#00bfff" />
-              <path d="M30 33 Q40 23 50 33 Q40 43 30 33" fill="white" />
-              <circle cx="35" cy="30" r="2" fill="white" />
-              <circle cx="45" cy="30" r="2" fill="white" />
-              <circle cx="35" cy="38" r="1.5" fill="white" />
-              <circle cx="45" cy="38" r="1.5" fill="white" />
-              <path d="M40 45 Q35 50 30 45 Q40 55 50 45 Q45 50 40 45" fill="#ff69b4" />
-              <text x="75" y="35" fontFamily="Arial, sans-serif" fontSize="24" fontWeight="bold" fill="#00bfff">
-                Strictly
-              </text>
-              <text x="75" y="55" fontFamily="Arial, sans-serif" fontSize="24" fontWeight="bold" fill="#ff69b4">
-                Woofs
-              </text>
-            </svg>
+            <StrictlyWoofsLogo size="h-10" width={180} height={54} />
           </Link>
           <div className="flex items-center space-x-4">
             <Link href="/messages">
