@@ -1,227 +1,191 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo"
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo";
+import { posts, type Creator } from "@/lib/mockData";
+import { appendConversationMessage, appendTransaction, readStringSet, toggleStoredId } from "@/lib/mockStorage";
 
-interface CreatorData {
-  name: string
-  username: string
-  avatar: string
-  coverImage: string
-  price: string
-  subscribers: string
-  bio: string
-  stats: {
-    posts: number
-    likes: string
-    videos: number
-    photos: number
-  }
-  specialties: string[]
-  gallery: string[]
-}
+export default function CreatorProfileClient({ creator }: { creator: Creator }) {
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [tipOpen, setTipOpen] = useState(false);
+  const [customTip, setCustomTip] = useState("");
+  const [info, setInfo] = useState<{ title: string; body: string } | null>(null);
 
-interface CreatorProfileClientProps {
-  creator: CreatorData
-  username: string
-}
+  const creatorPosts = useMemo(() => posts.filter((post) => post.creatorId === creator.id), [creator.id]);
 
-export default function CreatorProfileClient({ creator, username }: CreatorProfileClientProps) {
-  const [activeTab, setActiveTab] = useState("posts")
-  const [isSubscribed, setIsSubscribed] = useState(false)
+  useEffect(() => {
+    setIsSubscribed(readStringSet("subscriptions").has(creator.id));
+  }, [creator.id]);
+
+  const toggleSubscribe = () => {
+    const next = toggleStoredId("subscriptions", creator.id);
+    const subscribed = next.has(creator.id);
+    setIsSubscribed(subscribed);
+    setInfo({
+      title: subscribed ? `${creator.shortName} unlocked` : `${creator.shortName} relocked`,
+      body: subscribed
+        ? `${creator.name} has been notified to act casual while the premium gallery unlocks on this browser.`
+        : "Subscription canceled locally. The forbidden haunch angles have returned to the vault.",
+    });
+  };
+
+  const sendTip = (amount: number) => {
+    if (amount <= 0) return;
+    appendTransaction({ creatorId: creator.id, amount, label: "Creator profile treat transfer" });
+    appendConversationMessage({
+      creatorId: creator.id,
+      sender: "user",
+      type: "tip",
+      content: `Sent $${amount.toFixed(2)} from ${creator.name}'s profile because the thirst funnel worked.`,
+    });
+    setTipOpen(false);
+    setCustomTip("");
+    setInfo({
+      title: "Treat transfer complete",
+      body: `${creator.shortName} received $${amount.toFixed(2)} in imaginary snack liquidity and is now typing a suspicious thank-you.`,
+    });
+  };
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <header className="sticky top-0 bg-black/95 backdrop-blur border-b border-gray-800 p-4 z-50">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/feed" className="flex items-center space-x-2">
+    <div className="min-h-screen bg-black pb-16 text-white">
+      <header className="sticky top-0 z-50 border-b border-gray-800 bg-black/95 p-4 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <Link href="/feed">
             <StrictlyWoofsLogo size="h-10" width={180} height={54} />
           </Link>
-          <div className="flex items-center space-x-4">
-            <Link href="/messages">
-              <Button variant="ghost" size="sm" className="text-white hover:bg-gray-800">
-                💬 Messages
+          <div className="flex items-center gap-2">
+            <Link href={`/messages?creator=${creator.id}`}>
+              <Button variant="ghost" size="sm" className="text-white hover:bg-gray-900">
+                Message
               </Button>
             </Link>
             <Link href="/live">
-              <Button variant="ghost" size="sm" className="text-white hover:bg-gray-800">
-                🔴 Live
+              <Button variant="ghost" size="sm" className="text-white hover:bg-gray-900">
+                Live
               </Button>
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Cover Image */}
-      <div className="relative h-64 bg-gradient-to-r from-pink-900 to-blue-900">
-        <img
-          src={creator.coverImage}
-          alt={creator.name}
-          className="w-full h-full object-cover opacity-60"
-        />
-        <div className="absolute inset-0 bg-black/40" />
+      <div className="relative h-72 bg-gradient-to-r from-pink-950 to-blue-950">
+        <img src={creator.coverImage} alt={`${creator.name} cover`} className="h-full w-full object-cover opacity-60" />
+        <div className="absolute inset-0 bg-black/45" />
       </div>
 
-      {/* Profile Info */}
-      <div className="max-w-6xl mx-auto px-4 -mt-16 relative z-10">
-        <div className="flex flex-col md:flex-row items-start md:items-end space-y-4 md:space-y-0 md:space-x-6 mb-8">
-          <Avatar className="h-32 w-32 border-4 border-gray-800">
+      <main className="mx-auto max-w-6xl px-4">
+        <section className="relative z-10 -mt-16 mb-8 flex flex-col gap-5 md:flex-row md:items-end">
+          <Avatar className="h-32 w-32 border-4 border-black">
             <AvatarImage src={creator.avatar} />
-            <AvatarFallback>{creator.name[0]}</AvatarFallback>
+            <AvatarFallback>{creator.shortName[0]}</AvatarFallback>
           </Avatar>
 
           <div className="flex-1">
-            <div className="flex items-center space-x-2 mb-2">
-              <h1 className="text-3xl font-bold">{creator.name}</h1>
-              <Badge className="bg-blue-500">✓ Verified</Badge>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h1 className="text-4xl font-bold">{creator.name}</h1>
+              <Badge className="bg-blue-600">Verified</Badge>
+              <Badge className="bg-pink-600">{creator.badge}</Badge>
             </div>
-            <p className="text-gray-400 mb-4">{creator.username}</p>
-
-            <div className="flex items-center space-x-6 text-sm text-gray-400 mb-4">
-              <span><strong className="text-white">{creator.stats.posts}</strong> Posts</span>
-              <span><strong className="text-white">{creator.subscribers}</strong> Subscribers</span>
-              <span><strong className="text-white">{creator.stats.likes}</strong> Likes</span>
+            <p className="text-gray-400">{creator.username}</p>
+            <p className="mt-3 max-w-2xl text-lg text-gray-200">{creator.tagline}</p>
+            <div className="mt-4 flex flex-wrap gap-5 text-sm text-gray-400">
+              <span><strong className="text-white">{creator.stats.posts}</strong> posts</span>
+              <span><strong className="text-white">{creator.subscribers}</strong> subscribers</span>
+              <span><strong className="text-white">{creator.stats.likes}</strong> likes</span>
             </div>
           </div>
 
-          <div className="flex space-x-4">
-            <Button
-              className={`${isSubscribed ? 'bg-gray-600' : 'bg-gradient-to-r from-pink-500 to-blue-500 hover:from-pink-600 hover:to-blue-600'} px-8`}
-              onClick={() => setIsSubscribed(!isSubscribed)}
-            >
-              {isSubscribed ? 'Subscribed ✓' : `Subscribe ${creator.price}`}
+          <div className="flex flex-wrap gap-3">
+            <Button className={isSubscribed ? "bg-gray-700 hover:bg-gray-600" : "bg-gradient-to-r from-pink-600 to-blue-600 hover:from-pink-700 hover:to-blue-700"} onClick={toggleSubscribe}>
+              {isSubscribed ? "Subscribed" : `Subscribe ${creator.price}`}
             </Button>
-            <Link href={`/messages?creator=${username}`}>
-              <Button variant="outline" className="border-gray-600 text-white hover:bg-gray-800">
-                💬 Message
-              </Button>
-            </Link>
+            <Button variant="outline" className="border-gray-700 bg-black text-white hover:bg-gray-900" onClick={() => setTipOpen(true)}>
+              Send treat
+            </Button>
           </div>
-        </div>
+        </section>
 
-        {/* Bio & Stats */}
-        <div className="grid md:grid-cols-3 gap-8 mb-8">
-          <div className="md:col-span-2">
-            <h3 className="text-xl font-semibold mb-4">About {creator.name}</h3>
-            <p className="text-gray-300 leading-relaxed mb-6">{creator.bio}</p>
-
-            <h4 className="text-lg font-semibold mb-3">Specialties</h4>
-            <div className="flex flex-wrap gap-2">
-              {creator.specialties.map((specialty: string, index: number) => (
-                <Badge key={index} variant="secondary" className="bg-gray-800 text-gray-300">
+        <section className="mb-8 grid gap-6 md:grid-cols-[1fr_320px]">
+          <div>
+            <h2 className="mb-3 text-xl font-semibold">About {creator.shortName}</h2>
+            <p className="leading-relaxed text-gray-300">{creator.bio}</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {creator.specialties.map((specialty) => (
+                <Badge key={specialty} variant="secondary" className="bg-gray-900 text-gray-300">
                   {specialty}
                 </Badge>
               ))}
             </div>
           </div>
 
-          <Card className="bg-gray-900 border-gray-700">
-            <CardContent className="p-6">
-              <h4 className="text-lg font-semibold mb-4">Stats</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Videos</span>
-                  <span className="text-white font-semibold">{creator.stats.videos}</span>
+          <Card className="border-gray-800 bg-gray-950 text-white">
+            <CardContent className="space-y-3 p-5">
+              <h3 className="font-semibold">Chaos stats</h3>
+              {creator.chaosTraits.map((trait) => (
+                <div key={trait} className="rounded-md bg-gray-900 p-3 text-sm text-gray-300">
+                  {trait}
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Photos</span>
-                  <span className="text-white font-semibold">{creator.stats.photos}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Likes</span>
-                  <span className="text-white font-semibold">{creator.stats.likes}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Response Rate</span>
-                  <span className="text-green-400 font-semibold">98%</span>
-                </div>
-              </div>
+              ))}
             </CardContent>
           </Card>
-        </div>
+        </section>
 
-        {/* Content Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-gray-900 border-gray-700">
-            <TabsTrigger value="posts" className="data-[state=active]:bg-gray-700">Posts</TabsTrigger>
-            <TabsTrigger value="gallery" className="data-[state=active]:bg-gray-700">Gallery</TabsTrigger>
-            <TabsTrigger value="videos" className="data-[state=active]:bg-gray-700">Videos</TabsTrigger>
+        <Tabs defaultValue="posts">
+          <TabsList className="bg-gray-950">
+            <TabsTrigger value="posts">Posts</TabsTrigger>
+            <TabsTrigger value="gallery">Gallery</TabsTrigger>
+            <TabsTrigger value="videos">Videos</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="posts" className="mt-6">
-            <div className="grid gap-6">
-              {[1, 2, 3].map((post) => (
-                <Card key={post} className="bg-gray-900 border-gray-700">
-                  <CardContent className="p-6">
-                    <div className="flex items-center space-x-3 mb-4">
+          <TabsContent value="posts" className="mt-6 space-y-5">
+            {(creatorPosts.length ? creatorPosts : posts.slice(0, 3)).map((post) => (
+              <Card key={post.id} className="overflow-hidden border-gray-800 bg-gray-950 text-white">
+                <CardContent className="p-0">
+                  <div className="p-5">
+                    <div className="mb-3 flex items-center gap-3">
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={creator.avatar} />
-                        <AvatarFallback>{creator.name[0]}</AvatarFallback>
+                        <AvatarFallback>{creator.shortName[0]}</AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="font-semibold">{creator.name}</div>
-                        <div className="text-sm text-gray-400">{Math.floor(Math.random() * 12) + 1} hours ago</div>
+                        <div className="text-sm text-gray-500">{post.timestamp}</div>
                       </div>
                     </div>
-                    <p className="text-gray-300 mb-4">
-                      Just finished an intense session... my body is still trembling from the workout 💪
-                      Who wants to help me cool down? I have some very specific ideas in mind 😈
-                    </p>
-                    <div className="relative">
-                      <img
-                        src={creator.gallery[post % creator.gallery.length]}
-                        alt="Post content"
-                        className="w-full h-64 object-cover rounded-lg"
-                      />
-                      {!isSubscribed && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
-                          <Button className="bg-white/20 backdrop-blur text-white hover:bg-white/30">
-                            🔒 Subscribe to View
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="flex items-center space-x-4">
-                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-red-400">
-                          ❤️ {Math.floor(Math.random() * 500) + 100}
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                          💬 {Math.floor(Math.random() * 50) + 10}
+                    <p className="text-gray-300">{post.content}</p>
+                  </div>
+                  <div className="relative">
+                    <img src={post.image} alt={`${creator.name} post`} className="h-80 w-full object-cover" />
+                    {post.locked && !isSubscribed && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                        <Button className="bg-pink-600 hover:bg-pink-700" onClick={toggleSubscribe}>
+                          Subscribe to view
                         </Button>
                       </div>
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                        💰 Tip
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </TabsContent>
 
           <TabsContent value="gallery" className="mt-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {Array.from({length: 12}).map((_, index) => (
-                <div key={index} className="relative aspect-square">
-                  <img
-                    src={creator.gallery[index % creator.gallery.length]}
-                    alt={`Gallery ${index + 1}`}
-                    className="w-full h-full object-cover rounded-lg"
-                  />
-                  {!isSubscribed && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
-                      <Button size="sm" className="bg-white/20 backdrop-blur text-white hover:bg-white/30">
-                        🔒
-                      </Button>
-                    </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              {Array.from({ length: 12 }).map((_, index) => (
+                <div key={index} className="relative aspect-square overflow-hidden rounded-lg bg-gray-900">
+                  <img src={creator.gallery[index % creator.gallery.length]} alt={`${creator.name} gallery ${index + 1}`} className="h-full w-full object-cover" />
+                  {!isSubscribed && index > 1 && (
+                    <button className="absolute inset-0 bg-black/70 text-sm font-semibold text-white backdrop-blur-sm" onClick={toggleSubscribe}>
+                      Unlock
+                    </button>
                   )}
                 </div>
               ))}
@@ -229,33 +193,59 @@ export default function CreatorProfileClient({ creator, username }: CreatorProfi
           </TabsContent>
 
           <TabsContent value="videos" className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {Array.from({length: 6}).map((_, index) => (
-                <div key={index} className="relative">
-                  <img
-                    src={creator.gallery[index % creator.gallery.length]}
-                    alt={`Video ${index + 1}`}
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-lg">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
-                        <span className="text-2xl">▶️</span>
-                      </div>
-                      <div className="text-sm text-white">{Math.floor(Math.random() * 15) + 2}:30</div>
-                    </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <button
+                  key={index}
+                  className="relative overflow-hidden rounded-lg bg-gray-900 text-left"
+                  onClick={() =>
+                    isSubscribed
+                      ? setInfo({ title: "Video queued", body: `${creator.shortName}'s video player is fake, but the dramatic thumbnail is doing real emotional labor.` })
+                      : toggleSubscribe()
+                  }
+                >
+                  <img src={creator.gallery[index % creator.gallery.length]} alt={`${creator.name} video ${index + 1}`} className="h-52 w-full object-cover opacity-80" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="rounded-full bg-black/60 px-5 py-4 text-2xl">Play</div>
                   </div>
-                  {!isSubscribed && (
-                    <div className="absolute top-2 right-2">
-                      <Badge className="bg-pink-500">🔒 Premium</Badge>
-                    </div>
-                  )}
-                </div>
+                  {!isSubscribed && <Badge className="absolute right-3 top-3 bg-pink-600">Premium</Badge>}
+                </button>
               ))}
             </div>
           </TabsContent>
         </Tabs>
-      </div>
+      </main>
+
+      <Dialog open={tipOpen} onOpenChange={setTipOpen}>
+        <DialogContent className="border-gray-700 bg-gray-950 text-white">
+          <DialogHeader>
+            <DialogTitle>Tip {creator.shortName}</DialogTitle>
+          </DialogHeader>
+          <p className="text-gray-300">Send fake money. Receive real nonsense.</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[5, 20, 50].map((amount) => (
+              <Button key={amount} className="bg-yellow-700 hover:bg-yellow-800" onClick={() => sendTip(amount)}>
+                ${amount}
+              </Button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input value={customTip} onChange={(event) => setCustomTip(event.target.value)} placeholder="Custom amount" className="border-gray-700 bg-gray-900 text-white" />
+            <Button className="bg-yellow-700 hover:bg-yellow-800" onClick={() => sendTip(Number(customTip))}>
+              Send
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!info} onOpenChange={() => setInfo(null)}>
+        <DialogContent className="border-gray-700 bg-gray-950 text-white">
+          <DialogHeader>
+            <DialogTitle>{info?.title}</DialogTitle>
+          </DialogHeader>
+          <p className="text-gray-300">{info?.body}</p>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
+  );
 }

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo"
 
@@ -15,6 +16,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("")
   const [username, setUsername] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [info, setInfo] = useState<{ title: string; body: string } | null>(null)
   const router = useRouter()
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -96,13 +98,31 @@ export default function SignupPage() {
                 />
                 <label htmlFor="terms" className="text-gray-300">
                   I agree to the{" "}
-                  <Link href="#" className="text-blue-400 hover:text-blue-300">
+                  <button
+                    type="button"
+                    className="text-blue-400 hover:text-blue-300"
+                    onClick={() =>
+                      setInfo({
+                        title: "Terms of Service",
+                        body: "The terms are simple: no cats in the hot tub, no screenshots of the forbidden zoomies, and all fake payments are paid in emotional biscuits.",
+                      })
+                    }
+                  >
                     Terms of Service
-                  </Link>{" "}
+                  </button>{" "}
                   and{" "}
-                  <Link href="#" className="text-blue-400 hover:text-blue-300">
+                  <button
+                    type="button"
+                    className="text-blue-400 hover:text-blue-300"
+                    onClick={() =>
+                      setInfo({
+                        title: "Privacy Policy",
+                        body: "Strictly Woofs stores toy app state in this browser. Your tail-wag analytics remain between you, localStorage, and the snack cabinet.",
+                      })
+                    }
+                  >
                     Privacy Policy
-                  </Link>
+                  </button>
                 </label>
               </div>
 
@@ -181,6 +201,14 @@ export default function SignupPage() {
           </ul>
         </div>
       </div>
+      <Dialog open={!!info} onOpenChange={() => setInfo(null)}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle>{info?.title}</DialogTitle>
+          </DialogHeader>
+          <p className="text-gray-300">{info?.body}</p>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

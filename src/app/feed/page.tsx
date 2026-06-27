@@ -1,632 +1,734 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo";
+import {
+  creators,
+  getCreator,
+  notifications as defaultNotifications,
+  posts,
+  stories,
+  type Creator,
+  type MockNotification,
+  type Post,
+  type Story,
+} from "@/lib/mockData";
+import {
+  appendConversationMessage,
+  appendTransaction,
+  readStored,
+  readStringSet,
+  toggleStoredId,
+  writeStored,
+  writeStringSet,
+} from "@/lib/mockStorage";
 
-import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo"
+const storyReactions = ["Bark", "Howl", "Send treat", "Need paw-per-view"];
 
-const fakeNotifications = [
-  { user: "Max Muscles", message: "sent you a private photo 💪", time: "2m" },
-  { user: "Chloe Corgi", message: "wants to video chat with you 📹", time: "5m" },
-  { user: "Bruno Milk", message: "tipped you $25! 💰", time: "8m" },
-  { user: "Bella Poolside", message: "is going live now! 🔴", time: "12m" },
-  { user: "Rocky Rascal", message: "commented on your post 💬", time: "15m" },
-  { user: "Puffy Husky", message: "wants to meet up 😘", time: "18m" },
-  { user: "Max Muscles", message: "just subscribed to you! ⭐", time: "22m" },
-  { user: "Chloe Corgi", message: "sent you a wink 😉", time: "25m" },
-  { user: "Bruno Milk", message: "is typing... 💭", time: "28m" },
-  { user: "Bella Poolside", message: "liked your story ❤️", time: "30m" }
-]
+type TipTarget = { creator: Creator; post?: Post } | null;
+type PaywallTarget = { creator: Creator; post?: Post } | null;
+type ShareTarget = { creator: Creator; post: Post } | null;
+type InfoModal = { title: string; body: string; action?: string } | null;
 
-const fakeComments = [
-  "OMG you're so hot! 🔥",
-  "When can we meet? 😍",
-  "Your content is amazing!",
-  "I wish I was there with you 💕",
-  "You make me so excited 😈",
-  "Can't wait for more! 🤤",
-  "You're my favorite creator ⭐",
-  "So sexy when you do that 💦",
-  "I love everything about you 😘",
-  "Take my money! 💰"
-]
+function creatorForPost(post: Post) {
+  return getCreator(post.creatorId) || creators[0];
+}
 
-export default function FeedPage() {
-  const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set())
-  const [subscribedCreators, setSubscribedCreators] = useState<Set<string>>(new Set())
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications, setNotifications] = useState(fakeNotifications.slice(0, 3))
-  const [newComments, setNewComments] = useState<Record<number, string>>({})
-  const [postComments, setPostComments] = useState<Record<number, string[]>>({})
-  const [showTipDialog, setShowTipDialog] = useState<number | null>(null)
+function moneyFromPrice(price: string) {
+  const match = price.match(/\d+(?:\.\d+)?/);
+  return match ? Number.parseFloat(match[0]) : 5;
+}
 
-  // Add new notifications every 10-15 seconds
+function StoryViewer({
+  story,
+  onClose,
+  onReply,
+}: {
+  story: Story;
+  onClose: () => void;
+  onReply: (creatorId: string, prompt: string) => void;
+}) {
+  const [slideIndex, setSlideIndex] = useState(0);
+  const slide = story.slides[slideIndex];
+  const creator = getCreator(slide.creatorId) || creators[0];
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      const randomNotification = fakeNotifications[Math.floor(Math.random() * fakeNotifications.length)]
-      setNotifications(prev => {
-        const newNotifs = [randomNotification, ...prev.slice(0, 9)] // Keep last 10
-        return newNotifs
-      })
-    }, 10000 + Math.random() * 5000) // 10-15 seconds
+    setSlideIndex(0);
+  }, [story.id]);
 
-    return () => clearInterval(interval)
-  }, [])
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSlideIndex((current) => (current + 1) % story.slides.length);
+    }, 4500);
 
-  const toggleLike = (postId: number) => {
-    const newLiked = new Set(likedPosts)
-    if (newLiked.has(postId)) {
-      newLiked.delete(postId)
-    } else {
-      newLiked.add(postId)
-    }
-    setLikedPosts(newLiked)
-  }
-
-  const handleSubscribe = (creatorUsername: string) => {
-    const newSubscribed = new Set(subscribedCreators)
-    if (newSubscribed.has(creatorUsername)) {
-      newSubscribed.delete(creatorUsername)
-    } else {
-      newSubscribed.add(creatorUsername)
-    }
-    setSubscribedCreators(newSubscribed)
-  }
-
-  const addComment = (postId: number) => {
-    const comment = newComments[postId]
-    if (!comment?.trim()) return
-
-    const currentComments = postComments[postId] || []
-    setPostComments(prev => ({
-      ...prev,
-      [postId]: [...currentComments, `You: ${comment}`]
-    }))
-
-    setNewComments(prev => ({ ...prev, [postId]: "" }))
-
-    // Add a fake response after 2-5 seconds
-    setTimeout(() => {
-      const randomResponse = fakeComments[Math.floor(Math.random() * fakeComments.length)]
-      const creatorName = posts.find(p => p.id === postId)?.creator || "Creator"
-      setPostComments(prev => ({
-        ...prev,
-        [postId]: [...(prev[postId] || []), `${creatorName}: ${randomResponse}`]
-      }))
-    }, 2000 + Math.random() * 3000)
-  }
-
-  const sendTip = (amount: number) => {
-    setShowTipDialog(null)
-    // Show success message or animation
-    alert(`Tip of $${amount} sent! 💰`)
-  }
-
-  const posts = [
-    {
-      id: 1,
-      creator: "Max Muscles",
-      username: "@maxmuscles",
-      avatar: "/MaxMuscles.jpg",
-      content: "Just finished my workout 💪 These muscles don't build themselves... Want to feel how hard I've been working? My personal training sessions are always... intense 😈",
-      image: "/MaxMuscles.jpg",
-      likes: 1234,
-      comments: 289,
-      isVerified: true,
-      timestamp: "1 hour ago"
-    },
-    {
-      id: 2,
-      creator: "Chloe Corgi",
-      username: "@chloeswims",
-      avatar: "https://thumbs.dreamstime.com/b/adorable-corgi-dog-enyoing-swim-pool-vacation-pink-swimsuit-sunglasses-themes-hot-holidays-funny-pet-meme-318403919.jpg",
-      content: "Just got out of the pool... feeling so wet and wild 💦 Who wants to see more of my poolside poses? DM me for exclusive content 😘",
-      image: "https://thumbs.dreamstime.com/b/adorable-corgi-dog-enyoing-swim-pool-vacation-pink-swimsuit-sunglasses-themes-hot-holidays-funny-pet-meme-318403919.jpg",
-      likes: 567,
-      comments: 123,
-      isVerified: true,
-      timestamp: "3 hours ago"
-    },
-    {
-      id: 3,
-      creator: "Bruno Milk",
-      username: "@brunomilk",
-      avatar: "/ChatGPT_Image_Apr_25,_2025,_09_38_06_PM.png",
-      content: "That intense stare when you catch me with my milk 👀 I have a very particular way of drinking... slow, deep, and oh so satisfying. Want to watch me lick the glass clean? 💧",
-      image: "/ChatGPT_Image_Apr_25,_2025,_09_38_06_PM.png",
-      likes: 789,
-      comments: 156,
-      isVerified: true,
-      timestamp: "5 hours ago"
-    },
-    {
-      id: 4,
-      creator: "Bella Poolside",
-      username: "@bellaswims",
-      avatar: "https://thumbs.dreamstime.com/b/cute-corgi-looking-camera-sitting-pool-blue-water-vacation-meme-humor-hot-summer-holidays-dogs-317833592.jpg",
-      content: "That look when you catch me being naughty by the water 😏 I love showing off my natural curves... Subscribe for more intimate moments like this 🔥 I promise to make you wet 💦",
-      image: "https://thumbs.dreamstime.com/b/cute-corgi-looking-camera-sitting-pool-blue-water-vacation-meme-humor-hot-summer-holidays-dogs-317833592.jpg",
-      likes: 891,
-      comments: 234,
-      isVerified: true,
-      timestamp: "7 hours ago"
-    },
-    {
-      id: 5,
-      creator: "Puffy Husky",
-      username: "@puffyhusky",
-      avatar: "/Gemini_Generated_Image_fcsw1ufcsw1ufcsw.png",
-      content: "I'm all pumped up and ready to burst 💥 This inflation fantasy is getting me so excited... Want to see how big and round I can get? I love it when you watch me expand 🎈",
-      image: "/Gemini_Generated_Image_fcsw1ufcsw1ufcsw.png",
-      likes: 445,
-      comments: 87,
-      isVerified: true,
-      timestamp: "9 hours ago"
-    },
-    {
-      id: 6,
-      creator: "Rocky Rascal",
-      username: "@rockyrascal",
-      avatar: "https://media.makeameme.org/created/when-you-see-5c4538.jpg",
-      content: "When you see me giving you THAT look... you know what's coming next 😈 I've been a very bad boy today and need some punishment. Who's up for it? I promise I'll be worth it 😏",
-      image: "https://media.makeameme.org/created/when-you-see-5c4538.jpg",
-      likes: 1123,
-      comments: 378,
-      isVerified: true,
-      timestamp: "12 hours ago"
-    },
-    {
-      id: 7,
-      creator: "Luna Luxe",
-      username: "@lunaluxe",
-      avatar: "/LunaLuxe.jpg",
-      content: "Elegance meets passion tonight 💫 When sophistication gets naughty... You know it's going to be special. My premium content is ready for discerning tastes only 💎",
-      image: "/LunaLuxe.jpg",
-      likes: 892,
-      comments: 167,
-      isVerified: true,
-      timestamp: "15 hours ago"
-    },
-    {
-      id: 8,
-      creator: "Zara Wild",
-      username: "@zarawild",
-      avatar: "/ZaraWild.jpg",
-      content: "New girl alert! 🚨 I may be fresh to the scene but I'm ready to show you wild things you've never seen before. Who wants to break me in? 😈",
-      image: "/ZaraWild.jpg",
-      likes: 654,
-      comments: 198,
-      isVerified: true,
-      timestamp: "18 hours ago"
-    },
-    {
-      id: 9,
-      creator: "Diesel Daddy",
-      username: "@dieseldaddy",
-      avatar: "/8292b600-75fe-4c57-a858-4c940e5d7b29.jpeg",
-      content: "Your alpha has arrived 💪 I don't ask, I take control. Submit to my dominance and let daddy show you who's in charge. Good pups always obey their master 😈",
-      image: "/8292b600-75fe-4c57-a858-4c940e5d7b29.jpeg",
-      likes: 1456,
-      comments: 289,
-      isVerified: true,
-      timestamp: "20 hours ago"
-    },
-    {
-      id: 10,
-      creator: "Sophie Sweet",
-      username: "@sophiesweet",
-      avatar: "/bb85ecc0-632b-45a1-97af-987fa2d64f28.jpeg",
-      content: "Sweet dreams are made of me 🍯 I'm your innocent girl next door with a very naughty secret. Want to discover what makes this good girl so bad? 😘",
-      image: "/bb85ecc0-632b-45a1-97af-987fa2d64f28.jpeg",
-      likes: 723,
-      comments: 145,
-      isVerified: true,
-      timestamp: "22 hours ago"
-    },
-    {
-      id: 11,
-      creator: "Milo Magic",
-      username: "@milomagic",
-      avatar: "/c90855c0-341f-4b4c-be8e-336ad29d5a69.jpeg",
-      content: "Magic happens when I get playful 🎭 Tonight's show features disappearing clothes and reappearing desires. Let me cast a spell that will leave you mesmerized ✨",
-      image: "/c90855c0-341f-4b4c-be8e-336ad29d5a69.jpeg",
-      likes: 567,
-      comments: 112,
-      isVerified: true,
-      timestamp: "1 day ago"
-    },
-    {
-      id: 12,
-      creator: "Rex Rebel",
-      username: "@rexrebel",
-      avatar: "/Gemini_Generated_Image_7qn87e7qn87e7qn8.jpeg",
-      content: "Rules are meant to be broken 😈 Join my rebellion against boring content. I do things my way and I guarantee you've never seen anything like what I'm about to show you 🔥",
-      image: "/Gemini_Generated_Image_7qn87e7qn87e7qn8.jpeg",
-      likes: 891,
-      comments: 234,
-      isVerified: true,
-      timestamp: "1 day ago"
-    }
-  ]
+    return () => window.clearInterval(timer);
+  }, [story.slides.length]);
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <header className="sticky top-0 bg-black/95 backdrop-blur border-b border-gray-800 p-6 z-50">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2">
-            <StrictlyWoofsLogo size="h-20" width={300} height={75} />
-          </Link>
-
-          <div className="flex-1 max-w-md mx-8">
-            <Input
-              placeholder="Search for your favorite pup..."
-              className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
+    <div className="fixed inset-0 z-[80] bg-black text-white">
+      <div className="mx-auto flex h-full max-w-md flex-col bg-gray-950">
+        <div className="flex gap-1 p-3">
+          {story.slides.map((item, index) => (
+            <button
+              key={item.id}
+              className={`h-1 flex-1 rounded-full ${index <= slideIndex ? "bg-white" : "bg-gray-700"}`}
+              onClick={() => setSlideIndex(index)}
+              aria-label={`Story slide ${index + 1}`}
             />
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <Link href="/messages">
-              <Button variant="ghost" size="sm" className="text-white hover:bg-gray-800">
-                💬 Messages
-              </Button>
-            </Link>
-            <Link href="/live">
-              <Button variant="ghost" size="sm" className="text-white hover:bg-gray-800">
-                🔴 Live
-              </Button>
-            </Link>
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:bg-gray-800 relative"
-                onClick={() => setShowNotifications(!showNotifications)}
-              >
-                🔔 Notifications
-                {notifications.length > 0 && (
-                  <Badge className="absolute -top-1 -right-1 bg-red-500 text-xs min-w-[20px] h-5 flex items-center justify-center">
-                    {notifications.length}
-                  </Badge>
-                )}
-              </Button>
-
-              {showNotifications && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-                  <div className="p-4 border-b border-gray-700">
-                    <h3 className="font-semibold">Notifications</h3>
-                  </div>
-                  <div className="divide-y divide-gray-700">
-                    {notifications.map((notif, index) => (
-                      <div key={index} className="p-4 hover:bg-gray-800 cursor-pointer">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                          <div className="flex-1">
-                            <p className="text-sm">
-                              <span className="font-semibold text-blue-400">{notif.user}</span>
-                              {" "}{notif.message}
-                            </p>
-                            <p className="text-xs text-gray-500">{notif.time} ago</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <Avatar className="h-8 w-8">
-              <AvatarImage src="/placeholder-user.jpg" />
-              <AvatarFallback className="bg-gray-700">U</AvatarFallback>
-            </Avatar>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-4xl mx-auto p-4">
-        {/* Welcome Message */}
-        <div className="bg-gradient-to-r from-pink-900/50 to-blue-900/50 rounded-lg p-6 mb-8 border border-gray-700">
-          <h2 className="text-2xl font-bold mb-2">Welcome to your exclusive feed! 🎉</h2>
-          <p className="text-gray-300">
-            You're now part of the pack! Enjoy unlimited access to the sexiest, most adorable content
-            from our verified canine creators. Remember to tip your favorites and send them some love! 💕
-          </p>
-        </div>
-
-        {/* Story Bar */}
-        <div className="flex space-x-4 mb-8 overflow-x-auto pb-2">
-          <div className="flex flex-col items-center space-y-2 min-w-[80px]">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-blue-500 p-0.5">
-              <div className="w-full h-full rounded-full bg-gray-800 flex items-center justify-center">
-                <span className="text-2xl">🔥</span>
-              </div>
-            </div>
-            <span className="text-xs text-gray-400">Hot Now</span>
-          </div>
-
-          <div className="flex flex-col items-center space-y-2 min-w-[80px]">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 p-0.5">
-              <img
-                src="/MaxMuscles.jpg"
-                className="w-full h-full rounded-full object-cover"
-                alt="Max's story"
-              />
-            </div>
-            <span className="text-xs text-gray-400">Max</span>
-          </div>
-
-          <div className="flex flex-col items-center space-y-2 min-w-[80px]">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-blue-500 p-0.5">
-              <img
-                src="https://thumbs.dreamstime.com/b/adorable-corgi-dog-enyoing-swim-pool-vacation-pink-swimsuit-sunglasses-themes-hot-holidays-funny-pet-meme-318403919.jpg"
-                className="w-full h-full rounded-full object-cover"
-                alt="Chloe's story"
-              />
-            </div>
-            <span className="text-xs text-gray-400">Chloe</span>
-          </div>
-
-          <div className="flex flex-col items-center space-y-2 min-w-[80px]">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 p-0.5">
-              <img
-                src="/ChatGPT_Image_Apr_25,_2025,_09_38_06_PM.png"
-                className="w-full h-full rounded-full object-cover"
-                alt="Bruno's story"
-              />
-            </div>
-            <span className="text-xs text-gray-400">Bruno</span>
-          </div>
-
-          <div className="flex flex-col items-center space-y-2 min-w-[80px]">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-red-500 to-orange-500 p-0.5">
-              <img
-                src="/LunaLuxe.jpg"
-                className="w-full h-full rounded-full object-cover"
-                alt="Luna's story"
-              />
-            </div>
-            <span className="text-xs text-gray-400">Luna</span>
-          </div>
-
-          <div className="flex flex-col items-center space-y-2 min-w-[80px]">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 p-0.5">
-              <img
-                src="/8292b600-75fe-4c57-a858-4c940e5d7b29.jpeg"
-                className="w-full h-full rounded-full object-cover"
-                alt="Diesel's story"
-              />
-            </div>
-            <span className="text-xs text-gray-400">Diesel</span>
-          </div>
-
-          <div className="flex flex-col items-center space-y-2 min-w-[80px]">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 p-0.5">
-              <img
-                src="/bb85ecc0-632b-45a1-97af-987fa2d64f28.jpeg"
-                className="w-full h-full rounded-full object-cover"
-                alt="Sophie's story"
-              />
-            </div>
-            <span className="text-xs text-gray-400">Sophie</span>
-          </div>
-        </div>
-
-        {/* Posts Feed */}
-        <div className="space-y-6">
-          {posts.map((post) => (
-            <Card key={post.id} className="bg-gray-900 border-gray-700">
-              <CardContent className="p-0">
-                {/* Post Header */}
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center space-x-3">
-                    <Link href={`/creator/${post.username.replace('@', '')}`}>
-                      <Avatar className="h-10 w-10 cursor-pointer">
-                        <AvatarImage src={post.avatar} />
-                        <AvatarFallback>{post.creator[0]}</AvatarFallback>
-                      </Avatar>
-                    </Link>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <Link href={`/creator/${post.username.replace('@', '')}`}>
-                          <span className="font-semibold cursor-pointer hover:text-blue-400">{post.creator}</span>
-                        </Link>
-                        {post.isVerified && <Badge className="bg-blue-500 text-xs">✓</Badge>}
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-gray-400">
-                        <span>{post.username}</span>
-                        <span>•</span>
-                        <span>{post.timestamp}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`${subscribedCreators.has(post.username) ? 'text-green-400 hover:bg-gray-800' : 'text-blue-400 hover:bg-gray-800'}`}
-                    onClick={() => handleSubscribe(post.username)}
-                  >
-                    {subscribedCreators.has(post.username) ? 'Subscribed ✓' : 'Subscribe'}
-                  </Button>
-                </div>
-
-                {/* Post Content */}
-                <div className="px-4 pb-4">
-                  <p className="text-gray-300 mb-4">{post.content}</p>
-                </div>
-
-                {/* Post Image */}
-                <div className="relative">
-                  <img
-                    src={post.image}
-                    alt={`${post.creator}'s post`}
-                    className="w-full h-64 object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                    <Button className="bg-white/20 backdrop-blur text-white hover:bg-white/30">
-                      💦 Unlock Full Content
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Post Actions */}
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-4">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={`${likedPosts.has(post.id) ? 'text-red-500' : 'text-gray-400'} hover:text-red-400`}
-                        onClick={() => toggleLike(post.id)}
-                      >
-                        {likedPosts.has(post.id) ? '❤️' : '🤍'} {post.likes + (likedPosts.has(post.id) ? 1 : 0)}
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                        💬 {post.comments + (postComments[post.id]?.length || 0)}
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-                        🔗 Share
-                      </Button>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-400 hover:text-white"
-                      onClick={() => setShowTipDialog(post.id)}
-                    >
-                      💰 Tip
-                    </Button>
-                  </div>
-
-                  <div className="text-sm text-gray-400 mb-4">
-                    <span className="font-semibold text-white">{post.likes + (likedPosts.has(post.id) ? 1 : 0)} likes</span>
-                  </div>
-
-                  {/* Comments Section */}
-                  {postComments[post.id] && (
-                    <div className="mb-4 space-y-2 max-h-32 overflow-y-auto">
-                      {postComments[post.id].map((comment, index) => (
-                        <div key={index} className="text-sm text-gray-300">
-                          {comment}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex space-x-2">
-                    <Input
-                      placeholder="Add a comment... tell them how good they look 😍"
-                      className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 flex-1"
-                      value={newComments[post.id] || ""}
-                      onChange={(e) => setNewComments(prev => ({ ...prev, [post.id]: e.target.value }))}
-                      onKeyPress={(e) => e.key === 'Enter' && addComment(post.id)}
-                    />
-                    <Button
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700"
-                      onClick={() => addComment(post.id)}
-                    >
-                      Post
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           ))}
         </div>
 
-        {/* Load More */}
-        <div className="text-center py-8">
-          <Button className="bg-gradient-to-r from-pink-500 to-blue-500 hover:from-pink-600 hover:to-blue-600">
-            Load more naughty content 🐕
+        <div className="flex items-center justify-between px-4 pb-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={creator.avatar} />
+              <AvatarFallback>{creator.shortName[0]}</AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="font-semibold">{creator.name}</div>
+              <div className="text-xs text-gray-400">24h chaos drop</div>
+            </div>
+          </div>
+          <Button variant="ghost" className="text-white hover:bg-gray-800" onClick={onClose}>
+            Close
           </Button>
         </div>
-      </div>
 
-      {/* Tip Dialog */}
-      {showTipDialog && (
-        <Dialog open={!!showTipDialog} onOpenChange={() => setShowTipDialog(null)}>
-          <DialogContent className="bg-gray-900 border-gray-700 text-white">
-            <DialogHeader>
-              <DialogTitle>Send a Tip 💰</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-gray-300">Show your appreciation with a tip!</p>
-              <div className="grid grid-cols-3 gap-4">
-                <Button
-                  className="bg-yellow-600 hover:bg-yellow-700"
-                  onClick={() => sendTip(5)}
-                >
-                  $5
-                </Button>
-                <Button
-                  className="bg-yellow-600 hover:bg-yellow-700"
-                  onClick={() => sendTip(20)}
-                >
-                  $20
-                </Button>
-                <Button
-                  className="bg-yellow-600 hover:bg-yellow-700"
-                  onClick={() => sendTip(50)}
-                >
-                  $50
-                </Button>
-              </div>
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Custom amount..."
-                  className="bg-gray-800 border-gray-600 text-white"
-                />
-                <Button className="bg-yellow-600 hover:bg-yellow-700">
-                  Send
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+        <div className="relative flex-1 overflow-hidden">
+          <img src={slide.image} alt={slide.caption} className="h-full w-full object-cover" />
+          <button
+            className="absolute left-0 top-0 h-full w-1/3"
+            onClick={() => setSlideIndex((current) => (current === 0 ? story.slides.length - 1 : current - 1))}
+            aria-label="Previous story"
+          />
+          <button
+            className="absolute right-0 top-0 h-full w-1/3"
+            onClick={() => setSlideIndex((current) => (current + 1) % story.slides.length)}
+            aria-label="Next story"
+          />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5">
+            <Badge className="mb-3 bg-pink-600">{creator.badge}</Badge>
+            <p className="text-xl font-bold leading-tight">{slide.caption}</p>
+            <p className="mt-2 text-sm text-gray-300">{creator.tagline}</p>
+          </div>
+        </div>
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur border-t border-gray-800 p-4">
-        <div className="max-w-md mx-auto flex justify-around">
-          <Link href="/feed">
-            <Button variant="ghost" className="flex flex-col items-center text-blue-400">
-              <span className="text-xl">🏠</span>
-              <span className="text-xs">Home</span>
-            </Button>
-          </Link>
-          <Link href="/live">
-            <Button variant="ghost" className="flex flex-col items-center text-gray-400">
-              <span className="text-xl">🔴</span>
-              <span className="text-xs">Live</span>
-            </Button>
-          </Link>
-          <Link href="/messages">
-            <Button variant="ghost" className="flex flex-col items-center text-gray-400">
-              <span className="text-xl">💬</span>
-              <span className="text-xs">Messages</span>
-            </Button>
-          </Link>
-          <Button variant="ghost" className="flex flex-col items-center text-gray-400 relative">
-            <span className="text-xl">🔔</span>
-            <span className="text-xs">Notifications</span>
-            {notifications.length > 0 && (
-              <Badge className="absolute -top-1 -right-1 bg-red-500 text-xs min-w-[16px] h-4 flex items-center justify-center">
-                {notifications.length}
-              </Badge>
-            )}
-          </Button>
-          <Button variant="ghost" className="flex flex-col items-center text-gray-400">
-            <span className="text-xl">👤</span>
-            <span className="text-xs">Profile</span>
+        <div className="space-y-3 border-t border-gray-800 p-4">
+          <div className="grid grid-cols-2 gap-2">
+            {storyReactions.map((reaction) => (
+              <Button
+                key={reaction}
+                variant="outline"
+                className="border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+                onClick={() => onReply(creator.id, `${reaction}: ${slide.prompt}`)}
+              >
+                {reaction}
+              </Button>
+            ))}
+          </div>
+          <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => onReply(creator.id, slide.prompt)}>
+            Reply in DMs
           </Button>
         </div>
       </div>
     </div>
-  )
+  );
+}
+
+export default function FeedPage() {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(8);
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [subscribedCreators, setSubscribedCreators] = useState<Set<string>>(new Set());
+  const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
+  const [notifications, setNotifications] = useState<MockNotification[]>(defaultNotifications);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
+  const [selectedStory, setSelectedStory] = useState<Story | null>(null);
+  const [tipTarget, setTipTarget] = useState<TipTarget>(null);
+  const [customTip, setCustomTip] = useState("");
+  const [paywallTarget, setPaywallTarget] = useState<PaywallTarget>(null);
+  const [shareTarget, setShareTarget] = useState<ShareTarget>(null);
+  const [infoModal, setInfoModal] = useState<InfoModal>(null);
+  const [newComments, setNewComments] = useState<Record<number, string>>({});
+  const [postComments, setPostComments] = useState<Record<number, string[]>>({});
+
+  useEffect(() => {
+    setLikedPosts(readStringSet("liked-posts"));
+    setSubscribedCreators(readStringSet("subscriptions"));
+    setReadNotifications(readStringSet("read-notifications"));
+    setNotifications(readStored<MockNotification[]>("notifications", defaultNotifications));
+    setPostComments(readStored<Record<number, string[]>>("post-comments", {}));
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const random = defaultNotifications[Math.floor(Math.random() * defaultNotifications.length)];
+      const nextNotification = {
+        ...random,
+        id: `${random.id}-${Date.now()}`,
+        time: "now",
+        message: `${random.message} and also wants a legally binding belly rub`,
+      };
+      setNotifications((current) => {
+        const next = [nextNotification, ...current].slice(0, 12);
+        writeStored("notifications", next);
+        return next;
+      });
+    }, 18000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const filteredPosts = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return posts.slice(0, visibleCount);
+
+    return posts.filter((post) => {
+      const creator = creatorForPost(post);
+      return (
+        post.content.toLowerCase().includes(normalized) ||
+        creator.name.toLowerCase().includes(normalized) ||
+        creator.username.toLowerCase().includes(normalized) ||
+        creator.specialties.some((specialty) => specialty.toLowerCase().includes(normalized))
+      );
+    });
+  }, [query, visibleCount]);
+
+  const searchCreators = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return [];
+    return creators
+      .filter(
+        (creator) =>
+          creator.name.toLowerCase().includes(normalized) ||
+          creator.username.toLowerCase().includes(normalized) ||
+          creator.specialties.some((specialty) => specialty.toLowerCase().includes(normalized)),
+      )
+      .slice(0, 4);
+  }, [query]);
+
+  const unreadCount = notifications.filter((notification) => !readNotifications.has(notification.id)).length;
+
+  const toggleLike = (postId: number) => {
+    const next = toggleStoredId("liked-posts", String(postId));
+    setLikedPosts(new Set(next));
+  };
+
+  const toggleSubscribe = (creatorId: string) => {
+    const next = toggleStoredId("subscriptions", creatorId);
+    setSubscribedCreators(new Set(next));
+    const creator = getCreator(creatorId);
+    if (creator && next.has(creatorId)) {
+      setInfoModal({
+        title: `${creator.shortName} unlocked`,
+        body: `Subscription confirmed. The forbidden zoomies are now available, and ${creator.shortName} has been notified to act mysterious.`,
+      });
+    }
+  };
+
+  const submitComment = (post: Post) => {
+    const value = newComments[post.id]?.trim();
+    if (!value) return;
+    const creator = creatorForPost(post);
+    const comments = postComments[post.id] || [];
+    const nextComments = {
+      ...postComments,
+      [post.id]: [...comments, `You: ${value}`, `${creator.shortName}: I saw that comment and wagged professionally.`],
+    };
+    setPostComments(nextComments);
+    writeStored("post-comments", nextComments);
+    setNewComments((current) => ({ ...current, [post.id]: "" }));
+  };
+
+  const sendTip = (amount: number) => {
+    if (!tipTarget || amount <= 0) return;
+    const receipt = appendTransaction({
+      creatorId: tipTarget.creator.id,
+      amount,
+      label: tipTarget.post ? `Post tip for #${tipTarget.post.id}` : "Direct treat transfer",
+    });
+    appendConversationMessage({
+      creatorId: tipTarget.creator.id,
+      sender: "user",
+      type: "tip",
+      content: `Sent $${receipt.amount.toFixed(2)} in premium treat money.`,
+    });
+    setTipTarget(null);
+    setCustomTip("");
+    setInfoModal({
+      title: "Treat receipt generated",
+      body: `${tipTarget.creator.name} received $${amount.toFixed(2)} and immediately spent it emotionally on a squeaky luxury asset.`,
+    });
+  };
+
+  const subscribeFromPaywall = () => {
+    if (!paywallTarget) return;
+    toggleSubscribe(paywallTarget.creator.id);
+    setPaywallTarget(null);
+  };
+
+  const sharePost = async () => {
+    if (!shareTarget) return;
+    const url = `${window.location.origin}/creator/${shareTarget.creator.id}`;
+    const text = `Strictly Woofs leak: ${shareTarget.creator.name} just posted "${shareTarget.post.content.slice(0, 70)}..." ${url}`;
+    try {
+      await navigator.clipboard?.writeText(text);
+      setInfoModal({ title: "Share copied", body: "Copied a deeply unserious promo link to your clipboard." });
+    } catch {
+      setInfoModal({ title: "Share ready", body: text });
+    }
+    setShareTarget(null);
+  };
+
+  const markNotification = (notification: MockNotification) => {
+    const next = new Set(readNotifications);
+    next.add(notification.id);
+    setReadNotifications(next);
+    writeStringSet("read-notifications", next);
+    setShowNotifications(false);
+
+    if (notification.type === "message") {
+      router.push(`/messages?creator=${notification.creatorId}`);
+    } else if (notification.type === "live") {
+      router.push("/live");
+    } else if (notification.type === "story") {
+      setSelectedStory(stories.find((story) => story.creatorId === notification.creatorId) || stories[0]);
+    } else {
+      router.push(`/creator/${notification.creatorId}`);
+    }
+  };
+
+  const clearNotifications = () => {
+    const next = new Set(notifications.map((notification) => notification.id));
+    setReadNotifications(next);
+    writeStringSet("read-notifications", next);
+  };
+
+  const sendStoryReply = (creatorId: string, prompt: string) => {
+    appendConversationMessage({
+      creatorId,
+      sender: "user",
+      type: "story",
+      content: `Story reply: ${prompt}`,
+    });
+    setSelectedStory(null);
+    router.push(`/messages?creator=${creatorId}`);
+  };
+
+  return (
+    <div className="min-h-screen bg-black pb-24 text-white">
+      <header className="sticky top-0 z-50 border-b border-gray-800 bg-black/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
+          <Link href="/feed" className="shrink-0">
+            <StrictlyWoofsLogo size="h-14" width={220} height={70} />
+          </Link>
+
+          <div className="relative min-w-0 flex-1">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search pups, kinks, treats, suspicious milk..."
+              className="h-12 border-gray-700 bg-gray-900 text-white placeholder-gray-500"
+            />
+            {query.trim() && (
+              <div className="absolute left-0 right-0 top-14 z-50 rounded-lg border border-gray-700 bg-gray-950 p-3 shadow-2xl">
+                <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-wide text-gray-500">
+                  <span>Search results</span>
+                  <button onClick={() => setQuery("")} className="text-blue-400">
+                    Clear
+                  </button>
+                </div>
+                {searchCreators.length === 0 && filteredPosts.length === 0 && (
+                  <p className="text-sm text-gray-400">No pup found. The search dog is under the couch.</p>
+                )}
+                <div className="space-y-2">
+                  {searchCreators.map((creator) => (
+                    <Link key={creator.id} href={`/creator/${creator.id}`} className="flex items-center gap-3 rounded-md p-2 hover:bg-gray-900">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={creator.avatar} />
+                        <AvatarFallback>{creator.shortName[0]}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-medium">{creator.name}</div>
+                        <div className="text-xs text-gray-500">{creator.tagline}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <nav className="hidden items-center gap-2 md:flex">
+            <Link href="/messages">
+              <Button variant="ghost" className="text-white hover:bg-gray-900">
+                Messages
+              </Button>
+            </Link>
+            <Link href="/live">
+              <Button variant="ghost" className="text-white hover:bg-gray-900">
+                Live
+              </Button>
+            </Link>
+            <div className="relative">
+              <Button variant="ghost" className="relative text-white hover:bg-gray-900" onClick={() => setShowNotifications((value) => !value)}>
+                Notifications
+                {unreadCount > 0 && <Badge className="absolute -right-2 -top-2 bg-red-500">{unreadCount}</Badge>}
+              </Button>
+              {showNotifications && (
+                <div className="absolute right-0 top-12 w-96 rounded-lg border border-gray-700 bg-gray-950 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-gray-800 p-4">
+                    <h3 className="font-semibold">Notifications</h3>
+                    <Button size="sm" variant="ghost" className="text-blue-400 hover:bg-gray-900" onClick={clearNotifications}>
+                      Mark read
+                    </Button>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.map((notification) => {
+                      const creator = getCreator(notification.creatorId) || creators[0];
+                      const isRead = readNotifications.has(notification.id);
+                      return (
+                        <button
+                          key={notification.id}
+                          className="flex w-full items-start gap-3 border-b border-gray-900 p-4 text-left hover:bg-gray-900"
+                          onClick={() => markNotification(notification)}
+                        >
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={creator.avatar} />
+                            <AvatarFallback>{creator.shortName[0]}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className={isRead ? "text-gray-500" : "text-white"}>
+                              <span className="font-semibold text-blue-400">{creator.name}</span> {notification.message}
+                            </p>
+                            <p className="text-xs text-gray-500">{notification.time} ago</p>
+                          </div>
+                          {!isRead && <span className="mt-2 h-2 w-2 rounded-full bg-blue-500" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <button onClick={() => setShowAccount((value) => !value)} aria-label="Open account menu">
+                <Avatar className="h-10 w-10 border border-gray-700">
+                  <AvatarFallback className="bg-gray-800">U</AvatarFallback>
+                </Avatar>
+              </button>
+              {showAccount && (
+                <div className="absolute right-0 top-12 w-72 rounded-lg border border-gray-700 bg-gray-950 p-3 shadow-2xl">
+                  {["Wallet full of imaginary biscuits", "Creator dashboard rejected: not enough paws", "Privacy: your tail wags are encrypted", "Log out of the treat economy"].map((item) => (
+                    <button
+                      key={item}
+                      className="block w-full rounded-md p-3 text-left text-sm hover:bg-gray-900"
+                      onClick={() => {
+                        setShowAccount(false);
+                        setInfoModal({ title: "Account menu", body: `${item}. This is a local parody control, so nothing scary happened.` });
+                      }}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </nav>
+        </div>
+      </header>
+
+      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[1fr_340px]">
+        <section className="min-w-0">
+          <div className="mb-6 rounded-lg border border-gray-800 bg-gradient-to-r from-pink-950/80 to-blue-950/80 p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">Your premium pup feed</h1>
+                <p className="text-gray-300">Every interaction is fake. Every wag is legally compelling.</p>
+              </div>
+              <Button
+                className="bg-white text-black hover:bg-gray-200"
+                onClick={() => setInfoModal({ title: "Daily bone bonus", body: "You claimed 3 imaginary biscuits and one deeply problematic wink." })}
+              >
+                Claim daily bone
+              </Button>
+            </div>
+          </div>
+
+          <div className="mb-6 overflow-x-auto pb-2">
+            <div className="flex min-w-max gap-5">
+              {stories.map((story) => {
+                const creator = story.creatorId ? getCreator(story.creatorId) : undefined;
+                return (
+                  <button key={story.id} className="flex w-20 flex-col items-center gap-2" onClick={() => setSelectedStory(story)}>
+                    <div className="rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-blue-500 p-1">
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gray-900">
+                        {creator ? (
+                          <img src={creator.avatar} alt={`${creator.name} story`} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-2xl">Hot</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="w-full truncate text-xs text-gray-400">{story.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {filteredPosts.map((post) => {
+              const creator = creatorForPost(post);
+              const liked = likedPosts.has(String(post.id));
+              const subscribed = subscribedCreators.has(creator.id);
+              const locked = post.locked && !subscribed;
+
+              return (
+                <Card key={post.id} className="overflow-hidden border-gray-800 bg-gray-950 text-white">
+                  <CardContent className="p-0">
+                    <div className="flex items-center justify-between p-4">
+                      <Link href={`/creator/${creator.id}`} className="flex items-center gap-3">
+                        <Avatar className="h-11 w-11">
+                          <AvatarImage src={creator.avatar} />
+                          <AvatarFallback>{creator.shortName[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{creator.name}</span>
+                            <Badge className="bg-blue-600">Verified</Badge>
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {creator.username} - {post.timestamp}
+                          </div>
+                        </div>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        className={subscribed ? "text-green-400 hover:bg-gray-900" : "text-blue-400 hover:bg-gray-900"}
+                        onClick={() => toggleSubscribe(creator.id)}
+                      >
+                        {subscribed ? "Subscribed" : "Subscribe"}
+                      </Button>
+                    </div>
+
+                    <p className="px-4 pb-4 text-gray-300">{post.content}</p>
+
+                    <div className="relative bg-gray-900">
+                      <img src={post.image} alt={`${creator.name} post`} className="h-[420px] w-full object-cover" />
+                      {locked && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                          <div className="max-w-sm text-center">
+                            <div className="mb-2 text-4xl">Locked</div>
+                            <h3 className="text-xl font-bold">Paw-per-view chaos</h3>
+                            <p className="mt-2 text-sm text-gray-300">Subscribe to unlock {creator.shortName}'s forbidden zoomies and suspiciously curated haunch angles.</p>
+                            <Button className="mt-4 bg-pink-600 hover:bg-pink-700" onClick={() => setPaywallTarget({ creator, post })}>
+                              Unlock {post.ppvPrice || creator.price}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" className={liked ? "text-red-400 hover:bg-gray-900" : "text-gray-400 hover:bg-gray-900"} onClick={() => toggleLike(post.id)}>
+                            {liked ? "Liked" : "Like"} {post.likes + (liked ? 1 : 0)}
+                          </Button>
+                          <Button variant="ghost" className="text-gray-400 hover:bg-gray-900" onClick={() => setInfoModal({ title: "Comments", body: "Comment drawer already lives below the post. The moderation dog is awake." })}>
+                            Comments {post.comments + (postComments[post.id]?.length || 0)}
+                          </Button>
+                          <Button variant="ghost" className="text-gray-400 hover:bg-gray-900" onClick={() => setShareTarget({ creator, post })}>
+                            Share
+                          </Button>
+                        </div>
+                        <Button variant="ghost" className="text-yellow-400 hover:bg-gray-900" onClick={() => setTipTarget({ creator, post })}>
+                          Send treat money
+                        </Button>
+                      </div>
+
+                      {postComments[post.id]?.length > 0 && (
+                        <div className="space-y-2 rounded-lg bg-gray-900 p-3 text-sm text-gray-300">
+                          {postComments[post.id].map((comment, index) => (
+                            <div key={`${post.id}-${index}`}>{comment}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <Input
+                          value={newComments[post.id] || ""}
+                          onChange={(event) => setNewComments((current) => ({ ...current, [post.id]: event.target.value }))}
+                          onKeyDown={(event) => event.key === "Enter" && submitComment(post)}
+                          placeholder={`Tell ${creator.shortName} something financially irresponsible...`}
+                          className="border-gray-700 bg-gray-900 text-white placeholder-gray-500"
+                        />
+                        <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => submitComment(post)}>
+                          Post
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {!query.trim() && visibleCount < posts.length && (
+            <div className="py-8 text-center">
+              <Button className="bg-gradient-to-r from-pink-600 to-blue-600 hover:from-pink-700 hover:to-blue-700" onClick={() => setVisibleCount((count) => count + 4)}>
+                Load more suspicious content
+              </Button>
+            </div>
+          )}
+        </section>
+
+        <aside className="hidden space-y-4 lg:block">
+          <Card className="border-gray-800 bg-gray-950 text-white">
+            <CardContent className="p-4">
+              <h2 className="mb-3 font-semibold">Suggested creators</h2>
+              <div className="space-y-3">
+                {creators.slice(0, 6).map((creator) => (
+                  <div key={creator.id} className="flex items-center justify-between gap-3">
+                    <Link href={`/creator/${creator.id}`} className="flex min-w-0 items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={creator.avatar} />
+                        <AvatarFallback>{creator.shortName[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{creator.name}</div>
+                        <div className="truncate text-xs text-gray-500">{creator.badge}</div>
+                      </div>
+                    </Link>
+                    <Button size="sm" variant="ghost" className="text-blue-400 hover:bg-gray-900" onClick={() => toggleSubscribe(creator.id)}>
+                      {subscribedCreators.has(creator.id) ? "On" : "Sub"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-800 bg-gray-950 text-white">
+            <CardContent className="p-4">
+              <h2 className="mb-3 font-semibold">Trending chaos</h2>
+              {["Paw-per-view milk discourse", "Tank Thicc broke the couch algorithm", "Daisy Dukes biscuit scandal", "Sasha Sizzle ring light strike"].map((item) => (
+                <button
+                  key={item}
+                  className="block w-full rounded-md p-3 text-left text-sm text-gray-300 hover:bg-gray-900"
+                  onClick={() => setQuery(item.split(" ")[0])}
+                >
+                  {item}
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        </aside>
+      </main>
+
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-800 bg-black/95 p-3 backdrop-blur md:hidden">
+        <div className="mx-auto flex max-w-md justify-around">
+          <Link href="/feed">
+            <Button variant="ghost" className="text-blue-400">Home</Button>
+          </Link>
+          <Link href="/live">
+            <Button variant="ghost" className="text-gray-400">Live</Button>
+          </Link>
+          <Link href="/messages">
+            <Button variant="ghost" className="text-gray-400">Messages</Button>
+          </Link>
+          <Button variant="ghost" className="relative text-gray-400" onClick={() => setShowNotifications(true)}>
+            Alerts
+            {unreadCount > 0 && <Badge className="absolute -right-1 -top-1 bg-red-500">{unreadCount}</Badge>}
+          </Button>
+        </div>
+      </div>
+
+      {selectedStory && <StoryViewer story={selectedStory} onClose={() => setSelectedStory(null)} onReply={sendStoryReply} />}
+
+      <Dialog open={!!tipTarget} onOpenChange={() => setTipTarget(null)}>
+        <DialogContent className="border-gray-700 bg-gray-950 text-white">
+          <DialogHeader>
+            <DialogTitle>Send premium treat money</DialogTitle>
+          </DialogHeader>
+          {tipTarget && (
+            <div className="space-y-4">
+              <p className="text-gray-300">{tipTarget.creator.name} will receive a fake receipt, a real ego boost, and zero actual currency.</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[5, 20, 50].map((amount) => (
+                  <Button key={amount} className="bg-yellow-600 hover:bg-yellow-700" onClick={() => sendTip(amount)}>
+                    ${amount}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input value={customTip} onChange={(event) => setCustomTip(event.target.value)} placeholder="Custom treat budget" className="border-gray-700 bg-gray-900 text-white" />
+                <Button className="bg-yellow-600 hover:bg-yellow-700" onClick={() => sendTip(Number(customTip))}>
+                  Send
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!paywallTarget} onOpenChange={() => setPaywallTarget(null)}>
+        <DialogContent className="border-gray-700 bg-gray-950 text-white">
+          <DialogHeader>
+            <DialogTitle>Unlock the forbidden zoomies</DialogTitle>
+          </DialogHeader>
+          {paywallTarget && (
+            <div className="space-y-4">
+              <p className="text-gray-300">
+                Subscribe to {paywallTarget.creator.name} for {paywallTarget.creator.price}. Includes premium paws, suspiciously intimate snack reviews, and locked posts on this device.
+              </p>
+              <Button className="w-full bg-pink-600 hover:bg-pink-700" onClick={subscribeFromPaywall}>
+                Subscribe locally
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!shareTarget} onOpenChange={() => setShareTarget(null)}>
+        <DialogContent className="border-gray-700 bg-gray-950 text-white">
+          <DialogHeader>
+            <DialogTitle>Share this pup</DialogTitle>
+          </DialogHeader>
+          {shareTarget && (
+            <div className="space-y-4">
+              <p className="text-gray-300">Copy a parody promo link for {shareTarget.creator.name}. Use responsibly or at least dramatically.</p>
+              <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={sharePost}>
+                Copy share text
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!infoModal} onOpenChange={() => setInfoModal(null)}>
+        <DialogContent className="border-gray-700 bg-gray-950 text-white">
+          <DialogHeader>
+            <DialogTitle>{infoModal?.title}</DialogTitle>
+          </DialogHeader>
+          <p className="text-gray-300">{infoModal?.body}</p>
+          <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setInfoModal(null)}>
+            {infoModal?.action || "Understood"}
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

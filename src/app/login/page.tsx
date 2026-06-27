@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo"
 
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [info, setInfo] = useState<{ title: string; body: string } | null>(null)
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -82,12 +84,18 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-6 space-y-4">
-              <Link
-                href="#"
-                className="block text-center text-blue-400 hover:text-blue-300 text-sm"
+              <button
+                type="button"
+                className="block w-full text-center text-blue-400 hover:text-blue-300 text-sm"
+                onClick={() =>
+                  setInfo({
+                    title: "Password retrieval",
+                    body: "A recovery hound has been dispatched. He forgot why, but he looks confident.",
+                  })
+                }
               >
                 Forgot your password?
-              </Link>
+              </button>
 
               <div className="text-center text-gray-400 text-sm">
                 Don't have an account?{" "}
@@ -135,6 +143,14 @@ export default function LoginPage() {
           Must be 18+ to view this tail-wagging content.
         </p>
       </div>
+      <Dialog open={!!info} onOpenChange={() => setInfo(null)}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle>{info?.title}</DialogTitle>
+          </DialogHeader>
+          <p className="text-gray-300">{info?.body}</p>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
