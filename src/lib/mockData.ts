@@ -30,6 +30,7 @@ export interface Post {
   likes: number;
   comments: number;
   timestamp: string;
+  createdAt?: string;
   locked?: boolean;
   ppvPrice?: string;
 }
@@ -360,6 +361,60 @@ export const creators: Creator[] = [
     gallery: ["/TankThicc_1.jpg", "/TankThicc_2.jpg", "/TankThicc_1.jpg"],
     chaosTraits: ["has gravitational pull", "sits once and owns the furniture", "premium subscribers hear the floor creak"],
   },
+  {
+    id: "duchesscloud",
+    name: "Duchess Cloud",
+    username: "@duchesscloud",
+    shortName: "Duchess",
+    avatar: "/duchess-cloud.png",
+    coverImage: "/duchess-cloud.png",
+    price: "$17.99/month",
+    subscribers: "2.6k",
+    status: "online",
+    badge: "Fluff royalty",
+    tagline: "Your highness of high-maintenance fluff.",
+    bio: "A Samoyed socialite with a standing grooming appointment and absolutely no standing on the wet grass. Duchess reviews luxury dog beds, runs a very exclusive brush club, and considers every breeze a personal stylist.",
+    stats: { posts: 181, likes: "11.4k", videos: 42, photos: 139 },
+    specialties: ["Luxury fluff", "Grooming tutorials", "Royal side-eye", "Premium naps"],
+    gallery: ["/duchess-cloud.png"],
+    chaosTraits: ["insists her fur has its own management team", "reviews towels by thread count", "has never acknowledged a puddle"],
+  },
+  {
+    id: "biscuitromano",
+    name: "Biscuit Romano",
+    username: "@biscuitromano",
+    shortName: "Biscuit",
+    avatar: "/biscuit-romano.png",
+    coverImage: "/biscuit-romano.png",
+    price: "$12.99/month",
+    subscribers: "1.9k",
+    status: "online",
+    badge: "Snack critic",
+    tagline: "Five stars, provided the waiter drops something.",
+    bio: "A basset hound food critic whose ears have visited more plates than most forks. Biscuit specializes in dramatic restaurant reviews, patio lounging, and the delicate art of looking underfed immediately after lunch.",
+    stats: { posts: 148, likes: "9.1k", videos: 33, photos: 115 },
+    specialties: ["Treat reviews", "Patio dining", "Slow-motion sniffing", "Professional begging"],
+    gallery: ["/biscuit-romano.png"],
+    chaosTraits: ["judges restaurants by the floor crumbs", "believes every meal needs a second tasting", "calls begging tableside service"],
+  },
+  {
+    id: "novazoom",
+    name: "Nova Zoom",
+    username: "@novazoom",
+    shortName: "Nova",
+    avatar: "/nova-zoom.png",
+    coverImage: "/nova-zoom.png",
+    price: "$14.99/month",
+    subscribers: "3.2k",
+    status: "online",
+    badge: "Zoomie champion",
+    tagline: "Fast paws. Faster opinions.",
+    bio: "A border collie who turned a tennis-ball obsession into a full-time brand. Nova's feed is equal parts roller-rink adventures, speed records, and updates from the very serious Department of Fetch.",
+    stats: { posts: 204, likes: "15.2k", videos: 61, photos: 143 },
+    specialties: ["Zoomie challenges", "Tennis-ball reviews", "Retro rink days", "Fetch coaching"],
+    gallery: ["/nova-zoom.png"],
+    chaosTraits: ["has a personal best for hallway laps", "thinks every ball is a business opportunity", "calls naps mandatory pit stops"],
+  },
 ];
 
 export const getCreator = (id: string) => creators.find((creator) => creator.id === id);
@@ -373,8 +428,21 @@ export const posts: Post[] = [
     likes: 1234,
     comments: 289,
     timestamp: "1 hour ago",
-    locked: true,
-    ppvPrice: "$8.99",
+  },
+  {
+    id: 16, creatorId: "duchesscloud", image: "/duchess-cloud.png",
+    content: "My stylist says the fluff is effortless. My stylist has been here since Tuesday. Kindly respect the process.",
+    likes: 842, comments: 76, timestamp: "2 hours ago",
+  },
+  {
+    id: 17, creatorId: "biscuitromano", image: "/biscuit-romano.png",
+    content: "Today's tasting menu: one biscuit, a second biscuit for comparison, and a formal complaint about the size of the biscuits.",
+    likes: 691, comments: 93, timestamp: "2 hours ago",
+  },
+  {
+    id: 18, creatorId: "novazoom", image: "/nova-zoom.png",
+    content: "Broke my personal hallway record. The rug is reviewing the footage and my agent is requesting more tennis balls.",
+    likes: 1108, comments: 121, timestamp: "3 hours ago",
   },
   {
     id: 2,

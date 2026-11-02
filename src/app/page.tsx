@@ -21,7 +21,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="woof-landing woof-light min-h-screen bg-black text-white">
       <header className="border-b border-gray-800 p-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <StrictlyWoofsLogo width={150} height={40} />
@@ -39,27 +39,22 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden px-4 py-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(236,72,153,0.28),transparent_32%),radial-gradient(circle_at_top_right,rgba(37,99,235,0.24),transparent_30%)]" />
-        <div className="relative z-10 mx-auto max-w-5xl text-center">
-          <div className="mb-8 flex justify-center">
-            <StrictlyWoofsLogo size="h-56" width={740} height={190} />
-          </div>
-          <Badge className="mb-5 bg-pink-600 px-4 py-2 text-sm">The treat economy has gone too far</Badge>
-          <h1 className="text-5xl font-black leading-tight md:text-7xl">
-            Premium dog content from pups who absolutely know what they are doing.
-          </h1>
-          <p className="mx-auto mt-6 max-w-3xl text-xl text-gray-300">
-            A deeply unserious creator platform parody where every wink, zoomie, pool shake, and couch collapse is locked behind fake paywalls and real commitment to the bit.
+      <section className="woof-landing-hero relative overflow-hidden px-4">
+        <img src="/SashaSizzle_2.jpg" alt="Sasha Sizzle, Strictly Woofs creator" className="absolute inset-0 h-full w-full object-cover object-top" />
+        <div className="absolute inset-0 bg-black/55" />
+        <div className="relative z-10 mx-auto flex min-h-[480px] max-w-6xl flex-col items-start justify-center py-16">
+          <h1 className="text-5xl font-bold leading-tight md:text-6xl">Strictly Woofs</h1>
+          <p className="mt-5 max-w-lg text-lg text-white">
+            Your favorite creators. Their most exclusive zoomies. Absolutely no shame about the treat budget.
           </p>
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/signup">
-              <Button size="lg" className="bg-gradient-to-r from-pink-600 to-blue-600 px-8 hover:from-pink-700 hover:to-blue-700">
+              <Button size="lg" className="bg-blue-600 px-8 text-white hover:bg-blue-700">
                 Join the pack
               </Button>
             </Link>
             <Link href="/feed">
-              <Button size="lg" variant="outline" className="border-gray-700 bg-black text-white hover:bg-gray-900">
+              <Button size="lg" variant="outline" className="border-white bg-transparent text-white hover:bg-gray-900">
                 Preview the feed
               </Button>
             </Link>
@@ -72,7 +67,7 @@ export default function HomePage() {
           {[
             ["Paw-per-view", "Locked posts, fake tips, and subscription gates with zero actual billing."],
             ["Live chaos", "Stream rooms where chat can tip, bark, and emotionally support furniture."],
-            ["DM drama", "Message dogs who reply with suspiciously persuasive localStorage confidence."],
+            ["DM drama", "Get an in-character reply from your favorite creator."],
           ].map(([title, body]) => (
             <Card key={title} className="border-gray-800 bg-black text-white">
               <CardContent className="p-6">

@@ -4,7 +4,7 @@
 
 Strictly Woofs is a prototype/parody creator-social web app built with Next.js App Router. The UI presents a landing page, mock login/signup flows, a social feed, live-stream browsing/chat, direct messages, and static creator profile pages.
 
-This is currently a frontend-only static app. There is no real authentication, payment processing, database, API layer, or server actions. Login and signup always route to `/feed`; tips, subscriptions, likes, comments, live chat, messages, and story replies are simulated with client-side state and `localStorage`.
+The app runs as a Next.js server app. Login and signup remain pretend gates; there is no real authentication or payment processing. Tips, subscriptions, likes, comments, live chat, messages, and story replies use local browser state. Upstash Redis coordinates anonymous presence, shared automatic feed posts, and AI usage limits. Creator replies and feed updates use the server-side OpenAI Responses API.
 
 Project/package name in `package.json` is `nextjs-shadcn`, but the user-facing product is Strictly Woofs.
 
@@ -17,7 +17,7 @@ Project/package name in `package.json` is `nextjs-shadcn`, but the user-facing p
 - Package managers/lockfiles: both `package-lock.json` and `bun.lock` exist. `package.json` scripts use `bunx` for lint/format, while README shows multiple package managers and Netlify uses Bun.
 - Formatting/linting: Biome config exists for formatting and lint rules; ESLint flat config extends Next core web vitals/typescript with several rules disabled.
 - Type checking: TypeScript `strict: true`, `noEmit: true`, `moduleResolution: "bundler"`, alias `@/* -> ./src/*`.
-- Build output: `next.config.js` sets `output: "export"` and `distDir: "out"`, so builds are intended to produce static export output.
+- Build output: standard Next.js server output in `.next`; dynamic API routes require a server-capable deployment.
 - Deployment config: `netlify.toml` exists, but see Deployment Notes for a likely publish-directory mismatch.
 - External scripts/services: `src/app/layout.tsx` loads `//unpkg.com/same-runtime/dist/index.global.js`; `tsconfig.json` sets `jsxImportSource` to `same-runtime/dist`.
 
@@ -36,6 +36,8 @@ Project/package name in `package.json` is `nextjs-shadcn`, but the user-facing p
 - `src/lib/utils.ts`: shared `cn()` helper for class merging.
 - `src/lib/mockData.ts`: canonical mock creators, posts, stories, live streams, notifications, replies, and shared TypeScript interfaces.
 - `src/lib/mockStorage.ts`: SSR-safe `localStorage` helpers for local-only subscriptions, conversations, likes, comments, notifications, and fake treat transactions.
+- `src/lib/presence.ts` and `src/app/api/presence/route.ts`: anonymous expiring visitor markers, shared automatic-post schedule and recent posts.
+- `src/lib/creatorAI.ts`: shared server-side OpenAI request and creator personality logic.
 - `public/`: static images, logos, SVGs, and one MP4. Treat larger media files carefully; avoid casual replacement or deletion.
 - Root config files: `package.json`, lockfiles, `next.config.js`, `tailwind.config.ts`, `postcss.config.mjs`, `tsconfig.json`, `eslint.config.mjs`, `biome.json`, `components.json`, `netlify.toml`.
 
@@ -56,7 +58,7 @@ No `docs/`, `.github/`, `.cursor/rules/`, `CODEX.md`, `CLAUDE.md`, or `AGENTS.md
 - Static creator generation: `generateStaticParams()` in `src/app/creator/[username]/page.tsx`.
 - Shared UI utility: `cn()` in `src/lib/utils.ts`.
 
-There are no API route handlers, CLI entry points, workers, migrations, or database initialization files in the current repo.
+`src/app/api/creator/route.ts` handles AI chat and on-demand post generation; `/api/presence` handles anonymous activity and automatic shared posts. There are no workers, migrations, or database initialization files.
 
 ## How the App Works
 
@@ -66,11 +68,11 @@ Normal mock flow:
 
 `/` landing page -> `/login` or `/signup` -> fake delay -> `router.push("/feed")` -> local toy interactions -> links to `/creator/[username]`, `/messages`, or `/live`.
 
-Creator profiles use a hardcoded `creatorData` map in the server page and pass selected creator data to the client profile component. `generateStaticParams()` enumerates all supported usernames so the route can be statically exported.
+Creator profiles use the shared creator catalog and `generateStaticParams()` enumerates supported usernames.
 
-Stories, messages, tips, subscriptions, notifications, and live chat are simulated client-side. Several flows use `setTimeout`, `setInterval`, `Math.random()`, and `localStorage` to create fake activity. There is no websocket, queue, API call, backend storage, moderation layer, or real money movement.
+Stories, tips, subscriptions, notifications, stream imagery and audience activity are simulated. Direct messages, on-demand feed updates and replies to live-chat messages use `/api/creator`; those interactions persist in the browser. Automatically generated posts are shared through Redis. There is no websocket, queue, or real money movement.
 
-Images are a mix of files under `public/` and remote image URLs. `next.config.js` disables Next image optimization with `images.unoptimized: true`, matching static export usage.
+Images are a mix of files under `public/` and remote image URLs. `next.config.js` disables Next image optimization.
 
 ## Setup Instructions
 
@@ -94,11 +96,10 @@ Do not run both install flows casually, because the two lockfiles may drift. If 
 
 - `npm ci`: installs dependencies from `package-lock.json`. Safe when using npm and no dependency changes are intended.
 - `bun install`: installs dependencies from `bun.lock`. Safe when Bun is the intended package manager; needs owner verification because npm lockfile also exists.
-- `npm run dev`: runs `next dev -H 0.0.0.0 --turbopack`. Starts the dev server on port 3000 by default and exposes it on all interfaces. Needs care after `next build` because this project uses `distDir: "out"` and dev/build artifacts can collide.
+- `npm run dev`: runs `next dev -H 0.0.0.0 --turbopack`. Starts the dev server on port 3000 by default and exposes it on all interfaces.
 - `bun run dev`: equivalent script through Bun. Likely matches Netlify's Bun-oriented setup.
-- `npm run build` or `bun run build`: runs `next build`. With current `next.config.js`, intended output is static export under `out/`.
-- `python3 -m http.server 3001 -d out`: simple way to preview the built static export locally after `bun run build`.
-- `npm run start` or `bun run start`: runs `next start`. Needs verification with `output: "export"` because static export sites are usually served from `out/` rather than with `next start`.
+- `npm run build` or `bun run build`: runs `next build`.
+- `npm run start` or `bun run start`: serves the production build with `next start`.
 - `npm run lint` or `bun run lint`: runs `bunx tsc --noEmit && next lint`. Needs verification; this script requires Bun even when invoked via npm, and `next lint` may be incompatible with newer Next versions.
 - `npm run format` or `bun run format`: runs `bunx biome format --write` over Biome's configured file set. This writes changes.
 
@@ -106,7 +107,9 @@ No test, single-test, database migration, seed, Docker, or preview script is def
 
 ## Environment Variables
 
-No `.env`, `.env.example`, schema validator, or app code references to `process.env` were found. No environment variables are currently documented or required by the app code.
+- `OPENAI_API_KEY`: server-only key required for AI replies and fresh posts. Never expose it to the browser or commit its value.
+- `OPENAI_MODEL`: optional server-side model override; defaults to `gpt-4.1-mini`.
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN`: server-only Upstash Redis credentials for shared rate limits, presence, and automatic posts. The Vercel integration supplies them. For local development, pull the development environment with `vercel env pull .env.development.local --environment development`; never commit the resulting file.
 
 `netlify.toml` sets one build-time environment variable:
 
@@ -117,15 +120,15 @@ Do not add secrets to documentation. If future auth, payment, database, or API i
 ## Architecture Notes
 
 - App architecture is still page-centric, but mock product data is centralized in `src/lib/mockData.ts` and local persistence helpers are centralized in `src/lib/mockStorage.ts`.
-- There is no backend boundary. All "business logic" is UI mock behavior in client components.
+- `src/app/api/creator/route.ts` validates inputs and calls OpenAI on the server. `src/lib/creatorRateLimit.ts` uses an atomic Upstash Redis script to enforce 15 requests per visitor per UTC minute and 500 across the site per UTC day, shared across deployment instances. Counters use hashed IP addresses and expire automatically. A failed or unconfigured store returns 503 rather than allowing unmetered calls. Preview/development and production share the same store and quota unless separately configured.
+- `ClientBody` sends an anonymous per-tab heartbeat on feed, creator, live and messages routes about every 40 seconds. Presence expires after 120 seconds without a heartbeat; the API exposes only a boolean. This is an approximate activity signal, not identity, authentication, or a verified person count. The Redis presence namespace separates deployment environments.
+- The first heartbeat initializes an automatic-post schedule roughly 1-2 minutes ahead; subsequent posts are scheduled 3-7 minutes apart. A returning visitor may trigger a previously due post sooner. A Redis lock coordinates concurrent visitors; the post is published only if someone is still active when generation finishes. Redis retains up to 30 shared posts for seven days. Automatic posts consume the same site-wide AI quota as chats and on-demand updates; Redis or OpenAI failures leave the existing feed usable without automatic posting.
 - State management is local React state only (`useState`, `useEffect`, `useRef`); there is no global store.
 - Creator/post/story/message/live data should be changed in `src/lib/mockData.ts` first so landing, feed, live, messages, and creator profile routes stay synchronized.
 - The shared UI layer follows shadcn conventions: Radix primitive wrappers, `React.forwardRef`, `cva` variants, and `cn()` for class merging.
 - Styling is mostly Tailwind utility classes directly in components, with global CSS variables for shadcn color tokens.
 - `ClientBody` resets `document.body.className` to `antialiased` after hydration to remove extension-added classes.
-- The root layout metadata is still default create-next-app text (`Create Next App`), not product-specific.
-- There is no error handling pattern beyond simple fallback UI for unknown creator usernames.
-- There is no logging, validation library, auth/session handling, file upload/storage, or external API client.
+- API failures surface as retryable UI errors. There is no real auth or durable user account storage.
 
 ## Coding Conventions
 
@@ -141,7 +144,9 @@ Do not add secrets to documentation. If future auth, payment, database, or API i
 
 ## Testing Notes
 
-No automated test framework or test files were found. There are no `test`, `e2e`, or single-test scripts in `package.json`.
+Shared limiter integration tests are in `tests/creator-rate-limit.test.mjs`. With the development Upstash credentials available, run `bun --env-file=.env.development.local test tests/creator-rate-limit.test.mjs`. The tests use unique, expiring Redis keys and verify concurrent per-visitor and site-wide limits. They are skipped when Redis credentials are absent. Run `bun test tests/creator-route.test.mjs` separately to check 429, 503, validation and successful-response behavior without calling OpenAI. There is no package-level `test` or `e2e` script.
+
+Presence integration tests use isolated Redis keys: `bun --env-file=.env.development.local test tests/presence.test.mjs`. Run `bun test tests/presence-route.test.mjs` separately to check route behavior with mocked AI and Redis.
 
 For code changes, at minimum run a type/build check when dependencies are installed:
 
@@ -155,24 +160,10 @@ Also run the lint script if the project's package-manager setup has been verifie
 npm run lint
 ```
 
-During this documentation pass, commands were inspected but not executed because dependencies were absent and installing packages was unnecessary for documentation.
 
 ## Deployment Notes
 
-The app appears intended for static deployment:
-
-- `next.config.js` uses `output: "export"`.
-- `next.config.js` sets `distDir: "out"`.
-- `images.unoptimized: true` is configured, which is typical for static export.
-
-Netlify config needs verification:
-
-- `netlify.toml` build command is `bun run build`.
-- `netlify.toml` publish directory is `.next`.
-- Current Next config changes the output/dist directory to `out`, so Netlify may be publishing the wrong directory.
-- `@netlify/plugin-nextjs` is listed, but `NETLIFY_NEXT_PLUGIN_SKIP=true` is also set.
-
-Before changing deployment config, verify the actual hosting target and whether the intended published directory is `.next` or `out`.
+Vercel must run the app as a Next.js deployment with `OPENAI_API_KEY`, `KV_REST_API_URL`, and `KV_REST_API_TOKEN` set server-side. The Upstash resource is connected to the `strictly-woofs-com-1kjh` project. Static export cannot serve the creator API. The existing Netlify config is unverified and skips its Next plugin; do not assume it supports the API route without deployment testing.
 
 ## AI Agent Rules
 
@@ -182,7 +173,7 @@ Before changing deployment config, verify the actual hosting target and whether 
 - Do not modify application code for documentation-only tasks.
 - Check existing page-local data and UI patterns before adding abstractions.
 - Prefer small, focused edits. Avoid large rewrites of long route files unless the user asks for a refactor.
-- Preserve the current static-export constraints unless the user approves introducing backend features.
+- Preserve the server-side API boundary and keep OpenAI credentials out of client code.
 - Do not introduce new dependencies without explaining why and confirming the intended package manager.
 - Do not treat mock auth, subscriptions, tips, messages, or live chat as real integrations.
 - Do not add real payment, auth, database, moderation, or external API behavior without clearly calling out security and deployment implications.
@@ -194,17 +185,16 @@ Before changing deployment config, verify the actual hosting target and whether 
 ## Risky Areas / Gotchas
 
 - Package-manager ambiguity: both `package-lock.json` and `bun.lock` exist, scripts use `bunx`, and Netlify uses Bun.
-- Deployment mismatch risk: `next.config.js` points output to `out`, while `netlify.toml` publishes `.next`.
+- Public AI requests incur usage costs. Shared Redis limits bound request counts, not exact OpenAI spending; configure OpenAI billing limits separately. The free Upstash plan has its own quotas and AI requests fail closed when Redis is unavailable.
 - `npm run lint` depends on `bunx`; npm-only environments may fail.
 - `next lint` in the lint script needs verification with Next `15.3.8`.
 - There is no real auth despite login/signup UI and 18+ copy. Do not rely on these screens for access control.
 - There is no real billing despite subscription and tip UI. Do not connect real money movement without a proper payment flow and compliance review.
-- Persistence is local-only and browser-specific. Clearing localStorage resets subscriptions, messages, likes, comments, read notifications, and fake transactions.
+- User interaction persistence is local-only and browser-specific. Clearing localStorage resets subscriptions, messages, likes, comments, read notifications, and fake transactions. Shared automatic posts and anonymous presence are held temporarily in Redis.
 - Mock data is centralized now; avoid reintroducing duplicated creator/post arrays in page files.
 - `CreatorProfileClient` uses `Math.random()` during render for timestamps/likes/comments/video lengths, so values can change across renders.
 - Remote images depend on third-party URLs and may break or violate hotlinking expectations.
 - `public/` contains multiple large media assets, including a 4.9 MB MP4 and multi-megabyte PNGs.
-- Root metadata still says "Create Next App".
 - ESLint/Biome configs intentionally disable several accessibility/image-related checks; do not assume current markup is accessibility-complete.
 
 ## Documentation Gaps

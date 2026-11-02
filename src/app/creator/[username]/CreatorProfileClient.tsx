@@ -38,7 +38,7 @@ export default function CreatorProfileClient({ creator }: { creator: Creator }) 
   };
 
   const sendTip = (amount: number) => {
-    if (amount <= 0) return;
+    if (!Number.isFinite(amount) || amount <= 0) return;
     appendTransaction({ creatorId: creator.id, amount, label: "Creator profile treat transfer" });
     appendConversationMessage({
       creatorId: creator.id,
@@ -55,7 +55,7 @@ export default function CreatorProfileClient({ creator }: { creator: Creator }) 
   };
 
   return (
-    <div className="min-h-screen bg-black pb-16 text-white">
+    <div className="woof-profile woof-light min-h-screen bg-black pb-16 text-white">
       <header className="sticky top-0 z-50 border-b border-gray-800 bg-black/95 p-4 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <Link href="/feed">
@@ -76,21 +76,20 @@ export default function CreatorProfileClient({ creator }: { creator: Creator }) 
         </div>
       </header>
 
-      <div className="relative h-72 bg-gradient-to-r from-pink-950 to-blue-950">
-        <img src={creator.coverImage} alt={`${creator.name} cover`} className="h-full w-full object-cover opacity-60" />
-        <div className="absolute inset-0 bg-black/45" />
+      <div className="relative h-72 bg-gray-100">
+        <img src={creator.coverImage} alt={`${creator.name} cover`} className="h-full w-full object-cover object-top" />
       </div>
 
       <main className="mx-auto max-w-6xl px-4">
         <section className="relative z-10 -mt-16 mb-8 flex flex-col gap-5 md:flex-row md:items-end">
-          <Avatar className="h-32 w-32 border-4 border-black">
+          <Avatar className="h-32 w-32 border-4 border-white">
             <AvatarImage src={creator.avatar} />
             <AvatarFallback>{creator.shortName[0]}</AvatarFallback>
           </Avatar>
 
           <div className="flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <h1 className="text-4xl font-bold">{creator.name}</h1>
+              <h1 className="text-2xl font-bold">{creator.name}</h1>
               <Badge className="bg-blue-600">Verified</Badge>
               <Badge className="bg-pink-600">{creator.badge}</Badge>
             </div>
@@ -146,7 +145,8 @@ export default function CreatorProfileClient({ creator }: { creator: Creator }) 
           </TabsList>
 
           <TabsContent value="posts" className="mt-6 space-y-5">
-            {(creatorPosts.length ? creatorPosts : posts.slice(0, 3)).map((post) => (
+            {creatorPosts.length === 0 && <p className="py-8 text-center text-sm text-gray-500">No posts yet. Check back after the next walk.</p>}
+            {creatorPosts.map((post) => (
               <Card key={post.id} className="overflow-hidden border-gray-800 bg-gray-950 text-white">
                 <CardContent className="p-0">
                   <div className="p-5">
@@ -193,25 +193,7 @@ export default function CreatorProfileClient({ creator }: { creator: Creator }) 
           </TabsContent>
 
           <TabsContent value="videos" className="mt-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <button
-                  key={index}
-                  className="relative overflow-hidden rounded-lg bg-gray-900 text-left"
-                  onClick={() =>
-                    isSubscribed
-                      ? setInfo({ title: "Video queued", body: `${creator.shortName}'s video player is fake, but the dramatic thumbnail is doing real emotional labor.` })
-                      : toggleSubscribe()
-                  }
-                >
-                  <img src={creator.gallery[index % creator.gallery.length]} alt={`${creator.name} video ${index + 1}`} className="h-52 w-full object-cover opacity-80" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="rounded-full bg-black/60 px-5 py-4 text-2xl">Play</div>
-                  </div>
-                  {!isSubscribed && <Badge className="absolute right-3 top-3 bg-pink-600">Premium</Badge>}
-                </button>
-              ))}
-            </div>
+            <p className="py-8 text-center text-sm text-gray-500">No videos yet. The camera operator is looking for the record button.</p>
           </TabsContent>
         </Tabs>
       </main>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo";
 import { appendConversationMessage, appendTransaction } from "@/lib/mockStorage";
-import { creators, defaultCreatorReply, getCreator, liveStreams, type LiveStream } from "@/lib/mockData";
+import { creators, getCreator, liveStreams, type LiveStream } from "@/lib/mockData";
 
 interface LiveChatMessage {
   id: string;
@@ -44,25 +44,21 @@ export default function LivePage() {
   const [chatMessages, setChatMessages] = useState<LiveChatMessage[]>([]);
   const [viewerCount, setViewerCount] = useState(0);
   const [info, setInfo] = useState<{ title: string; body: string } | null>(null);
+  const [replying, setReplying] = useState(false);
+  const [replyError, setReplyError] = useState("");
+  const activeStream = useRef<string | null>(null);
 
   const currentCreator = selectedStream ? getCreator(selectedStream.creatorId) || creators[0] : null;
 
   useEffect(() => {
     if (!selectedStream) return;
+    activeStream.current = selectedStream.id;
+    setReplying(false);
+    setReplyError("");
     setViewerCount(selectedStream.viewers);
     setChatMessages(seedChat.slice(0, 4).map((message, index) => makeChatMessage(message, `Viewer${index + 1}`, index === 1 ? 20 : 0)));
+    return () => { activeStream.current = null; };
   }, [selectedStream]);
-
-  useEffect(() => {
-    if (!selectedStream || !currentCreator) return;
-    const timer = window.setInterval(() => {
-      const reply = defaultCreatorReply[Math.floor(Math.random() * defaultCreatorReply.length)];
-      setChatMessages((current) => [...current.slice(-24), makeChatMessage(reply, currentCreator.shortName, Math.random() > 0.8 ? 10 : 0)]);
-      setViewerCount((count) => Math.max(1, count + Math.floor(Math.random() * 17) - 6));
-    }, 3500);
-
-    return () => window.clearInterval(timer);
-  }, [selectedStream, currentCreator]);
 
   const live = useMemo(() => liveStreams.filter((stream) => stream.isLive), []);
   const offline = useMemo(() => liveStreams.filter((stream) => !stream.isLive), []);
@@ -79,10 +75,13 @@ export default function LivePage() {
     setSelectedStream(stream);
   };
 
-  const sendChatMessage = () => {
+  const sendChatMessage = async () => {
     const value = chatInput.trim();
-    if (!value || !currentCreator) return;
-    setChatMessages((current) => [...current.slice(-24), makeChatMessage(value, "You")]);
+    if (!value || !currentCreator || !selectedStream || replying) return;
+    const streamId = selectedStream.id;
+    const creator = currentCreator;
+    const nextMessages = [...chatMessages.slice(-24), makeChatMessage(value, "You")];
+    setChatMessages(nextMessages);
     appendConversationMessage({
       creatorId: currentCreator.id,
       sender: "user",
@@ -90,6 +89,23 @@ export default function LivePage() {
       content: `Live chat: ${value}`,
     });
     setChatInput("");
+    setReplyError("");
+    setReplying(true);
+    try {
+      const history = nextMessages.filter((message) => message.user === "You" || message.user === creator.shortName)
+        .slice(-10).map((message) => ({ role: message.user === "You" ? "user" : "assistant", content: message.message }));
+      const response = await fetch("/api/creator/", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creatorId: creator.id, mode: "chat", messages: history }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.text) throw new Error(data.error || "Could not get a reply.");
+      if (activeStream.current === streamId) setChatMessages((current) => [...current.slice(-24), makeChatMessage(data.text, creator.shortName)]);
+    } catch (error) {
+      if (activeStream.current === streamId) setReplyError(error instanceof Error ? error.message : "Could not get a reply.");
+    } finally {
+      if (activeStream.current === streamId) setReplying(false);
+    }
   };
 
   const sendTip = (amount: number) => {
@@ -106,7 +122,7 @@ export default function LivePage() {
 
   if (selectedStream && currentCreator) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="woof-live-room min-h-screen bg-black text-white">
         <header className="border-b border-gray-800 p-4">
           <div className="mx-auto flex max-w-7xl items-center justify-between">
             <div className="flex items-center gap-4">
@@ -177,6 +193,8 @@ export default function LivePage() {
                   <p className={message.tip > 0 ? "text-yellow-200" : "text-gray-400"}>{message.message}</p>
                 </div>
               ))}
+              {replying && <p className="text-sm text-gray-400">{currentCreator.shortName} is typing...</p>}
+              {replyError && <p role="alert" className="text-sm text-red-500">{replyError}</p>}
             </div>
             <div className="border-t border-gray-800 p-4">
               <div className="flex gap-2">
@@ -187,7 +205,7 @@ export default function LivePage() {
                   placeholder="Say something chaotic..."
                   className="border-gray-700 bg-gray-900 text-white"
                 />
-                <Button className="bg-blue-600 hover:bg-blue-700" onClick={sendChatMessage}>Send</Button>
+                <Button disabled={replying} className="bg-blue-600 hover:bg-blue-700" onClick={sendChatMessage}>Send</Button>
               </div>
             </div>
           </aside>
@@ -197,7 +215,7 @@ export default function LivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="woof-light min-h-screen bg-black text-white">
       <header className="border-b border-gray-800 p-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/feed">

@@ -9,9 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo";
 import {
-  creatorReplies,
   creators,
-  defaultCreatorReply,
   getCreator,
   quickReplies,
   type ConversationMessage,
@@ -53,6 +51,8 @@ function MessagesContent() {
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [search, setSearch] = useState("");
+  const [replyError, setReplyError] = useState("");
+  const selectedRef = useRef(selectedCreator);
   const endRef = useRef<HTMLDivElement>(null);
 
   const currentCreator = getCreator(selectedCreator) || creators[0];
@@ -63,6 +63,9 @@ function MessagesContent() {
   }, [requestedCreator]);
 
   useEffect(() => {
+    selectedRef.current = selectedCreator;
+    setReplyError("");
+    setIsTyping(false);
     const stored = readConversation(selectedCreator);
     const next = stored.length ? stored : initialMessages(selectedCreator);
     if (!stored.length) writeConversation(selectedCreator, next);
@@ -84,56 +87,44 @@ function MessagesContent() {
     );
   }, [search]);
 
-  const saveMessages = (next: ConversationMessage[]) => {
-    setMessages(next);
-    writeConversation(selectedCreator, next);
-  };
-
-  const creatorAutoReply = () => {
-    const options = creatorReplies[selectedCreator] || defaultCreatorReply;
-    return options[Math.floor(Math.random() * options.length)];
-  };
-
-  const sendCreatorReply = (extra?: ConversationMessage) => {
-    window.setTimeout(() => {
-      setIsTyping(false);
-      const reply: ConversationMessage = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        creatorId: selectedCreator,
-        sender: "creator",
-        type: extra?.type || "text",
-        content: extra?.content || creatorAutoReply(),
-        timestamp: new Date().toISOString(),
-      };
-      const next = [...readConversation(selectedCreator), reply];
-      saveMessages(next);
-    }, 1200 + Math.random() * 1600);
+  const sendCreatorReply = async (creatorId: string) => {
+    setReplyError("");
+    setIsTyping(true);
+    try {
+      const history = readConversation(creatorId).slice(-12).map((message) => ({
+        role: message.sender === "user" ? "user" : "assistant",
+        content: message.content,
+      }));
+      const response = await fetch("/api/creator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creatorId, mode: "chat", messages: history }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.text) throw new Error(result.error || "Could not get a reply.");
+      appendConversationMessage({ creatorId, sender: "creator", type: "text", content: result.text });
+      if (selectedRef.current === creatorId) setMessages(readConversation(creatorId));
+    } catch (error) {
+      if (selectedRef.current === creatorId) setReplyError(error instanceof Error ? error.message : "Could not get a reply.");
+    } finally {
+      if (selectedRef.current === creatorId) setIsTyping(false);
+    }
   };
 
   const sendMessage = (content = newMessage) => {
     const trimmed = content.trim();
     if (!trimmed) return;
 
-    const userMessage = appendConversationMessage({
+    if (isTyping) return;
+    appendConversationMessage({
       creatorId: selectedCreator,
       sender: "user",
       type: "text",
       content: trimmed,
     });
-    setMessages([...readConversation(selectedCreator), userMessage]);
+    setMessages(readConversation(selectedCreator));
     setNewMessage("");
-    setIsTyping(true);
-
-    const paidTeaser =
-      Math.random() > 0.64
-        ? {
-            creatorId: selectedCreator,
-            sender: "creator" as const,
-            type: "teaser" as const,
-            content: `Paw-per-view teaser queued: ${currentCreator.shortName} is preparing a premium angle called "${currentCreator.chaosTraits[1]}."`,
-          }
-        : undefined;
-    sendCreatorReply(paidTeaser as ConversationMessage | undefined);
+    void sendCreatorReply(selectedCreator);
   };
 
   const sendTip = (amount: number) => {
@@ -142,26 +133,18 @@ function MessagesContent() {
       amount,
       label: "DM treat transfer",
     });
-    const tip = appendConversationMessage({
+    appendConversationMessage({
       creatorId: selectedCreator,
       sender: "user",
       type: "tip",
       content: `Sent $${amount.toFixed(2)} in treat money and one imaginary belly rub voucher.`,
     });
-    setMessages([...readConversation(selectedCreator), tip]);
-    setIsTyping(true);
-    sendCreatorReply({
-      id: "",
-      creatorId: selectedCreator,
-      sender: "creator",
-      type: "text",
-      content: `I received the $${amount.toFixed(2)} and immediately became 38% more mysterious.`,
-      timestamp: "",
-    });
+    setMessages(readConversation(selectedCreator));
+    if (!isTyping) void sendCreatorReply(selectedCreator);
   };
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="woof-messages flex min-h-screen bg-black text-white">
       <aside className="hidden w-80 shrink-0 border-r border-gray-800 md:flex md:flex-col">
         <div className="border-b border-gray-800 p-4">
           <Link href="/feed" className="mb-4 flex items-center gap-2">
@@ -236,14 +219,16 @@ function MessagesContent() {
           </div>
         </header>
 
+        <label className="block border-b border-gray-100 p-3 md:hidden">
+          <span className="sr-only">Choose a creator</span>
+          <select aria-label="Choose a creator" value={selectedCreator} onChange={(event) => setSelectedCreator(event.target.value)} className="w-full rounded-md border border-gray-200 bg-white p-2 text-sm text-gray-800">
+            {creators.map((creator) => <option key={creator.id} value={creator.id}>{creator.name}</option>)}
+          </select>
+        </label>
+
         <section className="flex-1 overflow-y-auto p-4">
           <div className="mx-auto max-w-3xl space-y-4">
-            <div className="rounded-lg border border-blue-900 bg-blue-950/30 p-4">
-              <div className="font-semibold">{currentCreator.tagline}</div>
-              <p className="mt-1 text-sm text-gray-300">
-                This chat is fake, local, and persistent on this browser. The flirting is generated by a dog with a monetization strategy.
-              </p>
-            </div>
+            {replyError && <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{replyError} <button className="underline" onClick={() => void sendCreatorReply(selectedCreator)}>Retry</button></div>}
 
             {messages.map((message) => (
               <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
@@ -281,7 +266,7 @@ function MessagesContent() {
           <div className="mx-auto max-w-3xl space-y-3">
             <div className="flex gap-2 overflow-x-auto pb-1">
               {quickReplies.map((reply) => (
-                <Button key={reply} variant="outline" size="sm" className="shrink-0 border-gray-700 bg-gray-900 text-white hover:bg-gray-800" onClick={() => sendMessage(reply)}>
+                <Button key={reply} disabled={isTyping} variant="outline" size="sm" className="shrink-0 border-gray-700 bg-gray-900 text-white hover:bg-gray-800" onClick={() => sendMessage(reply)}>
                   {reply}
                 </Button>
               ))}
@@ -303,7 +288,7 @@ function MessagesContent() {
                 placeholder={`Message ${currentCreator.shortName} something unhinged...`}
                 className="border-gray-700 bg-gray-900 text-white placeholder-gray-500"
               />
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => sendMessage()}>
+              <Button disabled={isTyping} className="bg-blue-600 hover:bg-blue-700" onClick={() => sendMessage()}>
                 Send
               </Button>
             </div>

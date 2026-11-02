@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import StrictlyWoofsLogo from "@/components/StrictlyWoofsLogo";
+import { Home, Bell, MessageCircle, Radio, Search, Sparkles, UserRound } from "lucide-react";
 import {
   creators,
   getCreator,
@@ -40,6 +41,15 @@ type InfoModal = { title: string; body: string; action?: string } | null;
 
 function creatorForPost(post: Post) {
   return getCreator(post.creatorId) || creators[0];
+}
+
+function postAge(post: Post) {
+  if (!post.createdAt) return post.timestamp;
+  const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(post.createdAt)) / 60_000));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
 }
 
 function moneyFromPrice(price: string) {
@@ -146,6 +156,10 @@ function StoryViewer({
 export default function FeedPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [freshPosts, setFreshPosts] = useState<Post[]>([]);
+  const [sharedPosts, setSharedPosts] = useState<Post[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState("");
   const [visibleCount, setVisibleCount] = useState(8);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [subscribedCreators, setSubscribedCreators] = useState<Set<string>>(new Set());
@@ -168,6 +182,20 @@ export default function FeedPage() {
     setReadNotifications(readStringSet("read-notifications"));
     setNotifications(readStored<MockNotification[]>("notifications", defaultNotifications));
     setPostComments(readStored<Record<number, string[]>>("post-comments", {}));
+    setFreshPosts(readStored<Post[]>("fresh-posts", []));
+    try {
+      const cached = JSON.parse(sessionStorage.getItem("strictly-woofs:shared-posts") || "[]");
+      if (Array.isArray(cached)) setSharedPosts(cached);
+    } catch { /* Shared posts will arrive with the next heartbeat. */ }
+  }, []);
+
+  useEffect(() => {
+    const onPosts = (event: Event) => {
+      const data = (event as CustomEvent<unknown>).detail;
+      if (Array.isArray(data)) setSharedPosts(data as Post[]);
+    };
+    window.addEventListener("woofs:shared-posts", onPosts);
+    return () => window.removeEventListener("woofs:shared-posts", onPosts);
   }, []);
 
   useEffect(() => {
@@ -191,9 +219,10 @@ export default function FeedPage() {
 
   const filteredPosts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return posts.slice(0, visibleCount);
+    const allPosts = [...sharedPosts, ...freshPosts, ...posts];
+    if (!normalized) return allPosts.slice(0, visibleCount);
 
-    return posts.filter((post) => {
+    return allPosts.filter((post) => {
       const creator = creatorForPost(post);
       return (
         post.content.toLowerCase().includes(normalized) ||
@@ -202,7 +231,28 @@ export default function FeedPage() {
         creator.specialties.some((specialty) => specialty.toLowerCase().includes(normalized))
       );
     });
-  }, [query, visibleCount]);
+  }, [query, visibleCount, freshPosts, sharedPosts]);
+
+  const generateUpdate = async () => {
+    if (generating) return;
+    setGenerating(true);
+    setGenerationError("");
+    const creator = creators[Math.floor(Math.random() * creators.length)];
+    try {
+      const response = await fetch("/api/creator", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ creatorId: creator.id, mode: "post" }) });
+      const result = await response.json();
+      if (!response.ok || !result.text) throw new Error(result.error || "Could not load a new update.");
+      setFreshPosts((current) => {
+        const next = [{ id: Date.now(), creatorId: creator.id, content: result.text, image: creator.gallery[0], likes: 0, comments: 0, timestamp: "just now" }, ...current].slice(0, 30);
+        writeStored("fresh-posts", next);
+        return next;
+      });
+    } catch (error) {
+      setGenerationError(error instanceof Error ? error.message : "Could not load a new update.");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const searchCreators = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -326,7 +376,16 @@ export default function FeedPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black pb-24 text-white">
+    <div className="woof-app min-h-screen bg-black pb-24 text-white">
+      <aside className="woof-sidebar" aria-label="Main navigation">
+        <Link href="/feed" className="woof-brand"><StrictlyWoofsLogo size="h-12" width={165} height={48} /></Link>
+        <Link href="/feed" className="woof-nav active"><Home /> <span>Home</span></Link>
+        <button className="woof-nav" onClick={() => setShowNotifications((value) => !value)}><Bell /> <span>Notifications</span>{unreadCount > 0 && <span className="woof-count">{unreadCount}</span>}</button>
+        <Link href="/messages" className="woof-nav"><MessageCircle /> <span>Messages</span></Link>
+        <Link href="/live" className="woof-nav"><Radio /> <span>Live</span></Link>
+        <button className="woof-nav" onClick={() => setInfoModal({ title: "Your profile", body: "Your creator account is ready for its close-up. Your activity is saved on this device." })}><UserRound /> <span>Profile</span></button>
+        <button className="woof-refresh" disabled={generating} onClick={generateUpdate}><Sparkles /> {generating ? "Fetching..." : "Fresh update"}</button>
+      </aside>
       <header className="sticky top-0 z-50 border-b border-gray-800 bg-black/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
           <Link href="/feed" className="shrink-0">
@@ -449,22 +508,13 @@ export default function FeedPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[1fr_340px]">
+      <main className="woof-main mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[1fr_340px]">
         <section className="min-w-0">
-          <div className="mb-6 rounded-lg border border-gray-800 bg-gradient-to-r from-pink-950/80 to-blue-950/80 p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h1 className="text-2xl font-bold">Your premium pup feed</h1>
-                <p className="text-gray-300">Every interaction is fake. Every wag is legally compelling.</p>
-              </div>
-              <Button
-                className="bg-white text-black hover:bg-gray-200"
-                onClick={() => setInfoModal({ title: "Daily bone bonus", body: "You claimed 3 imaginary biscuits and one deeply problematic wink." })}
-              >
-                Claim daily bone
-              </Button>
-            </div>
+          <div className="woof-feed-title">
+            <h1>Home</h1>
+            <button title="Get a fresh creator update" aria-label="Get a fresh creator update" onClick={generateUpdate} disabled={generating}><Sparkles size={21} /></button>
           </div>
+          {generationError && <p role="alert" className="woof-error">{generationError}</p>}
 
           <div className="mb-6 overflow-x-auto pb-2">
             <div className="flex min-w-max gap-5">
@@ -510,7 +560,7 @@ export default function FeedPage() {
                             <Badge className="bg-blue-600">Verified</Badge>
                           </div>
                           <div className="text-sm text-gray-500">
-                            {creator.username} - {post.timestamp}
+                            {creator.username} - {postAge(post)}
                           </div>
                         </div>
                       </Link>
@@ -586,7 +636,7 @@ export default function FeedPage() {
             })}
           </div>
 
-          {!query.trim() && visibleCount < posts.length && (
+          {!query.trim() && visibleCount < posts.length + freshPosts.length + sharedPosts.length && (
             <div className="py-8 text-center">
               <Button className="bg-gradient-to-r from-pink-600 to-blue-600 hover:from-pink-700 hover:to-blue-700" onClick={() => setVisibleCount((count) => count + 4)}>
                 Load more suspicious content
@@ -657,6 +707,21 @@ export default function FeedPage() {
       </div>
 
       {selectedStory && <StoryViewer story={selectedStory} onClose={() => setSelectedStory(null)} onReply={sendStoryReply} />}
+
+      <div className="md:hidden">
+        <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
+          <DialogContent className="bg-white text-gray-900">
+            <DialogHeader><DialogTitle>Notifications</DialogTitle></DialogHeader>
+            <button className="text-left text-sm text-blue-600" onClick={clearNotifications}>Mark all read</button>
+            <div className="max-h-[60vh] overflow-auto">
+              {notifications.map((notification) => {
+                const creator = getCreator(notification.creatorId);
+                return <button key={notification.id} onClick={() => markNotification(notification)} className="block w-full border-b border-gray-100 py-3 text-left text-sm"><strong>{creator?.name}</strong> {notification.message}</button>;
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       <Dialog open={!!tipTarget} onOpenChange={() => setTipTarget(null)}>
         <DialogContent className="border-gray-700 bg-gray-950 text-white">
